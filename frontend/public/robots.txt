@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kbo-predictor.vercel.app/sitemap.xml
