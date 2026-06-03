@@ -52,6 +52,11 @@ app.include_router(analytics.router, prefix="/v1")
 app.include_router(blog.router, prefix="/v1")
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
+    return {"status": "ok"}
+
+
+@app.api_route("/v1/health", methods=["GET", "HEAD"])
+async def health_v1():
     return {"status": "ok"}
