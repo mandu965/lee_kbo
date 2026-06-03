@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import RecentFormBadges from "@/components/RecentFormBadges";
 import StarterCard from "@/components/StarterCard";
@@ -90,7 +90,14 @@ function LineupTable({ title, side, players }: { title: string; side: string; pl
 
 export default function GameDetailClient({ summary }: { summary: GameResponse }) {
   const [tab, setTab] = useState<Tab>("preview");
-  const shouldLoadGame = tab === "lineup" || tab === "pitchers" || tab === "analysis";
+  const [primeGameData, setPrimeGameData] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPrimeGameData(true), 600);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const shouldLoadGame = primeGameData || tab === "lineup" || tab === "pitchers" || tab === "analysis";
   const shouldLoadPrediction = tab === "analysis";
 
   const { data: fullGame, isLoading: gameLoading, error: gameError } = useSWR<GameResponse>(
