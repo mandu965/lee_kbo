@@ -27,6 +27,7 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary", title: "KBO Predictor", description: "데이터 기반 KBO 승부예측 플랫폼" },
   robots: { index: true, follow: true },
+  verification: { google: "_QhLLrBaUMZ6GcBG8MFpQd_qV1dHkKlK02jtqTfjOrw" },
 };
 
 
