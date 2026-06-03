@@ -21,8 +21,8 @@ function formatDate(dateStr: string) {
 }
 
 export default async function BlogListPage() {
-  const data = await getBlogPosts(1, 30).catch(() => null);
-  const posts = data?.posts ?? [];
+  const data = await getBlogPosts(1, 60).catch(() => null);
+  const posts = (data?.posts ?? []).filter((p) => p.slug === "type-a");
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -67,7 +67,7 @@ export default async function BlogListPage() {
       {/* 총 개수 */}
       {posts.length > 0 && (
         <p className="text-center text-xs text-slate-600 pb-4">
-          총 {data?.total ?? posts.length}개의 분석 글
+          총 {posts.length}개의 경기 예측 분석
         </p>
       )}
     </div>
