@@ -21,6 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/teams`,    lastModified: updated, changeFrequency: "daily",   priority: 0.9 },
     { url: `${BASE_URL}/players`,  lastModified: updated, changeFrequency: "daily",   priority: 0.9 },
     { url: `${BASE_URL}/schedule`, lastModified: updated, changeFrequency: "daily",   priority: 0.9 },
+    { url: `${BASE_URL}/blog`,     lastModified: updated, changeFrequency: "daily",   priority: 0.9 },
     { url: `${BASE_URL}/history`,  lastModified: updated, changeFrequency: "weekly",  priority: 0.8 },
     { url: `${BASE_URL}/glossary`, lastModified: updated, changeFrequency: "monthly", priority: 0.6 },
     { url: `${BASE_URL}/about`,    lastModified: updated, changeFrequency: "monthly", priority: 0.5 },
@@ -53,5 +54,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...staticRoutes, ...teamRoutes, ...playerRoutes];
+  // 블로그 포스트 (TYPE_A만 노출 — /blog 페이지와 동일)
+  const blogData = await safeFetch<{ posts: { date: string; slug: string }[] }>(
+    `${API_URL}/blog/posts?limit=50`, { posts: [] }
+  );
+  const blogRoutes: MetadataRoute.Sitemap = blogData.posts
+    .filter((p) => p.slug === "type-a")
+    .map((p, i) => ({
+      url: `${BASE_URL}/blog/${p.date}/${p.slug}`,
+      lastModified: new Date(p.date),
+      changeFrequency: "weekly" as const,
+      priority: i === 0 ? 0.9 : 0.8,
+    }));
+
+  return [...staticRoutes, ...teamRoutes, ...playerRoutes, ...blogRoutes];
 }
