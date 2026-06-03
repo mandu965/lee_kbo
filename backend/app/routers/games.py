@@ -100,7 +100,11 @@ async def _starter_recent_form(
 
 
 async def _starter_info(
-    session: AsyncSession, player_id: Optional[int], season: int, before: date_cls
+    session: AsyncSession,
+    player_id: Optional[int],
+    season: int,
+    before: date_cls,
+    include_recent: bool = True,
 ) -> Optional[StarterInfo]:
     if player_id is None:
         return None
@@ -123,7 +127,10 @@ async def _starter_info(
     k_bb = None
     if stat and stat.strikeouts and stat.walks and stat.walks > 0:
         k_bb = round(stat.strikeouts / stat.walks, 2)
-    recent_summary, recent_games = await _starter_recent_form(session, player_id, before)
+    recent_summary = None
+    recent_games: list[StarterAppearanceInfo] = []
+    if include_recent:
+        recent_summary, recent_games = await _starter_recent_form(session, player_id, before)
     return StarterInfo(
         id=player.id,
         name=player.name,
@@ -477,6 +484,70 @@ async def _build_game_response(session: AsyncSession, game: Game) -> GameRespons
     )
 
 
+async def _build_game_summary_response(session: AsyncSession, game: Game) -> GameResponse:
+    home_team: Team = await session.get(Team, game.home_team_id)
+    away_team: Team = await session.get(Team, game.away_team_id)
+    season = game.game_date.year
+
+    home_form = await _recent_form(session, home_team.id, game.game_date)
+    away_form = await _recent_form(session, away_team.id, game.game_date)
+
+    pred = (
+        await session.execute(
+            select(Prediction).where(Prediction.game_id == game.id)
+        )
+    ).scalar_one_or_none()
+    runs = await _latest_prediction_runs(session, game.id)
+
+    home_starter = await _starter_info(
+        session, game.home_starter_id, season, game.game_date, include_recent=False
+    )
+    away_starter = await _starter_info(
+        session, game.away_starter_id, season, game.game_date, include_recent=False
+    )
+    if home_starter is None and home_team:
+        home_starter = await _team_ace(session, home_team.id, season)
+    if away_starter is None and away_team:
+        away_starter = await _team_ace(session, away_team.id, season)
+
+    return GameResponse(
+        id=game.id,
+        game_date=game.game_date,
+        start_time=game.start_time,
+        stadium=game.stadium,
+        status=game.status,
+        home_team=TeamInGame(
+            id=home_team.id,
+            code=home_team.code,
+            name=home_team.name,
+            short_name=home_team.short_name,
+            elo_rating=home_team.elo_rating,
+            home_elo=home_team.home_elo,
+            away_elo=home_team.away_elo,
+            recent_form=home_form,
+        ),
+        away_team=TeamInGame(
+            id=away_team.id,
+            code=away_team.code,
+            name=away_team.name,
+            short_name=away_team.short_name,
+            elo_rating=away_team.elo_rating,
+            home_elo=away_team.home_elo,
+            away_elo=away_team.away_elo,
+            recent_form=away_form,
+        ),
+        home_score=game.home_score,
+        away_score=game.away_score,
+        prediction=_prediction_schema(pred, runs[0] if runs else None, runs[1] if len(runs) > 1 else None),
+        starters=StartersInGame(home=home_starter, away=away_starter),
+        home_trend=None,
+        away_trend=None,
+        home_lineup=None,
+        away_lineup=None,
+        data_freshness=[],
+    )
+
+
 # ── 엔드포인트 ────────────────────────────────────────────────
 
 @router.get("/today", response_model=GameListResponse)
@@ -511,6 +582,15 @@ async def get_games_by_date(target_date: date_cls, session: AsyncSession) -> Gam
 
     responses = [await _build_game_response(session, g) for g in games]
     return GameListResponse(date=target_date, total=len(responses), games=responses)
+
+
+@router.get("/{game_id}/summary", response_model=GameResponse)
+async def get_game_summary(game_id: int, session: AsyncSession = Depends(get_db)):
+    """경기 상세 첫 화면용 요약 데이터."""
+    game: Optional[Game] = await session.get(Game, game_id)
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return await _build_game_summary_response(session, game)
 
 
 @router.get("/{game_id}", response_model=GameResponse)

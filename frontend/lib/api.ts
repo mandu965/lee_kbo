@@ -51,6 +51,9 @@ export const getGamesByDate = (date: string) =>
 export const getGame = (id: number) =>
   get<GameResponse>(`/games/${id}`, 60);               // ISR 1분
 
+export const getGameSummary = (id: number) =>
+  get<GameResponse>(`/games/${id}/summary`, 60);
+
 export const getGamePrediction = (id: number) =>
   get<PredictionInGame>(`/games/${id}/prediction`, 60); // ISR 1분
 
