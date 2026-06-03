@@ -89,9 +89,12 @@ class TeamLineupInfo(BaseModel):
 
 class TeamInGame(BaseModel):
     id: int
+    code: str
     name: str
     short_name: str | None = None
     elo_rating: float
+    home_elo: float = 1500.0
+    away_elo: float = 1500.0
     recent_form: str = ""        # "WWLWL" (오른쪽이 최신)
 
 

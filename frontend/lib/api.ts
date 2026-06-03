@@ -15,6 +15,18 @@ import type {
   TeamInRanking,
 } from "./types";
 
+export class ApiError extends Error {
+  status: number;
+  path: string;
+
+  constructor(status: number, path: string) {
+    super(`API error ${status}: ${path}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.path = path;
+  }
+}
+
 const BASE =
   (typeof window === "undefined"
     ? (process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL)
@@ -25,7 +37,7 @@ async function get<T>(path: string, revalidate?: number): Promise<T> {
     ? { next: { revalidate } as NextFetchRequestConfig }
     : { cache: "no-store" };
   const res = await fetch(`${BASE}${path}`, init);
-  if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
+  if (!res.ok) throw new ApiError(res.status, path);
   return res.json() as Promise<T>;
 }
 

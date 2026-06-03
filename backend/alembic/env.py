@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -16,7 +17,9 @@ import app.models  # noqa: F401 — registers all models
 target_metadata = Base.metadata
 
 # Render: DATABASE_WEB_URL(Supabase) 우선, 로컬: DATABASE_URL
-config.set_main_option("sqlalchemy.url", settings.effective_database_url)
+is_prod = os.getenv("ENV", "dev") == "production"
+database_url = settings.effective_database_url if is_prod else settings._to_asyncpg(settings.database_url)
+config.set_main_option("sqlalchemy.url", database_url)
 
 
 def run_migrations_offline() -> None:

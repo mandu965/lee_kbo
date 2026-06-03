@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getGame, getGamePrediction } from "@/lib/api";
+import { cache } from "react";
+import { ApiError, getGame, getGamePrediction } from "@/lib/api";
 import WinProbBar from "@/components/WinProbBar";
 import RecentFormBadges from "@/components/RecentFormBadges";
 import StarterCard from "@/components/StarterCard";
@@ -11,8 +12,32 @@ interface Props {
   params: { id: string };
 }
 
+const getCachedGame = cache(async (id: number) => getGame(id));
+
+async function loadGameOrNull(id: number) {
+  try {
+    return await getCachedGame(id);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function loadPredictionOrNull(id: number) {
+  try {
+    return await getGamePrediction(id);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const game = await getGame(Number(params.id)).catch(() => null);
+  const game = await loadGameOrNull(Number(params.id));
   if (!game) return { title: "경기 상세" };
   const away = game.away_team.short_name ?? game.away_team.name;
   const home = game.home_team.short_name ?? game.home_team.name;
@@ -214,8 +239,8 @@ export default async function GameDetailPage({ params }: Props) {
   if (isNaN(id)) notFound();
 
   const [game, prediction] = await Promise.all([
-    getGame(id).catch(() => null),
-    getGamePrediction(id).catch(() => null),
+    loadGameOrNull(id),
+    loadPredictionOrNull(id),
   ]);
 
   if (!game) notFound();
@@ -226,6 +251,8 @@ export default async function GameDetailPage({ params }: Props) {
   const awayWin = isFinished && (game.away_score ?? 0) > (game.home_score ?? 0);
   const eloDiff = Math.abs(home_team.elo_rating - away_team.elo_rating).toFixed(0);
   const eloBetter = home_team.elo_rating > away_team.elo_rating ? "home" : "away";
+  const awayRoadElo = away_team.away_elo ?? away_team.elo_rating;
+  const homeHomeElo = home_team.home_elo ?? home_team.elo_rating;
   const gameAnalysis = buildGameAnalysis(game, prediction);
 
   // ── 탭별 콘텐츠 변수 ─────────────────────────────────────
@@ -414,20 +441,20 @@ export default async function GameDetailPage({ params }: Props) {
         {/* 홈/원정 분리 ELO */}
         <StatCompareRow
           label="원정 ELO"
-          awayVal={away_team.away_elo.toFixed(0)}
+          awayVal={awayRoadElo.toFixed(0)}
           homeVal={"—"}
-          awayBetter={away_team.away_elo > away_team.elo_rating}
+          awayBetter={awayRoadElo > away_team.elo_rating}
         />
         <StatCompareRow
           label="홈 ELO"
           awayVal={"—"}
-          homeVal={home_team.home_elo.toFixed(0)}
+          homeVal={homeHomeElo.toFixed(0)}
           awayBetter={false}
         />
 
         {/* ELO 시각 바 (홈 home_elo vs 원정 away_elo) */}
         <div className="px-1 pb-2">
-          <EloBar home={home_team.home_elo} away={away_team.away_elo} />
+          <EloBar home={homeHomeElo} away={awayRoadElo} />
           <p className="text-center text-xs text-slate-600 mt-1">
             홈/원정 ELO 기준 — 차이 {Math.abs(home_team.home_elo - away_team.away_elo).toFixed(0)}점
           </p>
