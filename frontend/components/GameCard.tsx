@@ -65,7 +65,7 @@ export default function GameCard({ game }: GameCardProps) {
   const groundInsight = !isFinished && insights.length > 0 ? insights.join(" · ") : null;
 
   return (
-    <Link href={`/games/${game.id}`} prefetch={false}>
+    <Link href={`/games/${game.id}`}>
       <div className="rounded-2xl p-4 transition-all duration-200 cursor-pointer hover:-translate-y-px hover:border-indigo-500/30 hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)] sm:p-5"
         style={{ background: "#111827", border: "1px solid rgba(255,255,255,0.06)" }}
       >
