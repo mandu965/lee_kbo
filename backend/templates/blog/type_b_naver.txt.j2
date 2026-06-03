@@ -1,0 +1,54 @@
+{{ title }}
+
+{{ intro }}
+
+■ KBO ELO 전력 순위 ({{ as_of_date }} 기준)
+
+{% for t in teams_by_elo %}
+{{ loop.index }}위  {{ t.name }}  ELO {{ t.elo_rating|int }}  (공식 {{ t.rank }}위 / {{ t.wins }}승 {{ t.losses }}패 {{ t.draws }}무 / 승률 {{ "%.3f"|format(t.win_pct) }})
+{% endfor %}
+
+※ ELO 레이팅 초기값은 1500점이며, 강팀과의 경기 결과가 더 크게 반영됩니다.
+
+■ 이번 주 ELO 상승 TOP 3
+
+{% for t in risers %}
+{{ loop.index }}위 {{ t.name }}  +{{ "%.1f"|format(t.elo_change_7d) }}점  ({{ t.games_played }}경기)
+{% endfor %}
+
+■ 이번 주 ELO 하락 TOP 3
+
+{% for t in fallers %}
+{{ loop.index }}위 {{ t.name }}  {{ "%.1f"|format(t.elo_change_7d) }}점  ({{ t.games_played }}경기)
+{% endfor %}
+
+■ 주목 포인트 — 공식 순위 vs AI 전력
+
+{% for item in rank_gap_teams %}
+{{ connector }} {{ item.name }}: 공식 {{ item.rank }}위 / ELO {{ item.elo_rank }}위
+  → {{ item.gap_desc }}
+{% endfor %}
+
+■ 팀별 현황 요약
+
+{% for t in teams_by_elo %}
+{{ loop.index }}위 {{ t.name }} — ELO {{ t.elo_rating|int }}점 / 공식 {{ t.rank }}위 / {{ t.wins }}승 {{ t.losses }}패 {{ t.draws }}무 / 승률 {{ "%.3f"|format(t.win_pct) }} / 연속 {{ t.streak }}
+{% endfor %}
+
+■ ELO 순위 해석 안내
+
+ELO 레이팅은 체스에서 유래한 전력 지표입니다. 강팀을 이기면 더 많이 오르고 약팀에 지면 더 많이 떨어지는 구조입니다. 공식 순위(단순 승률 기준)와 달리 상대 전력을 반영하기 때문에, 두 순위가 크게 차이나는 팀은 일정 유불리 또는 최근 흐름의 변화가 반영됐을 가능성이 높습니다.
+
+ELO 레이팅 기준점은 시즌 초 전 팀 동일하게 1500점으로 출발합니다. 현재 1500점 이상인 팀은 평균 이상의 전력을 보유하고 있다고 볼 수 있으며, 1500점 미만인 팀은 상대적으로 전력이 낮다고 해석할 수 있습니다. 다만 시즌 초반에는 표본이 적어 변동폭이 크고, 시즌이 진행될수록 안정적인 전력 지표가 됩니다.
+
+ELO 전력 순위는 매일 전날 경기 결과가 반영되어 업데이트됩니다. 오늘의 경기 결과에 따라 내일 순위가 달라질 수 있으니 내일 리포트도 확인해보세요.
+
+{{ outro }}
+
+■ KBO AI 예측 시스템
+
+팀 전력 분석과 오늘의 경기 예측은 아래에서 확인할 수 있습니다.
+https://lee-kbo-web.onrender.com/
+
+---
+본 분석은 통계 모델 기반 참고 정보입니다. 실제 경기 결과와 다를 수 있습니다.

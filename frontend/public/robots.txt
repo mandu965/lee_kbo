@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://lee-kbo-web.onrender.com/sitemap.xml
+
+# 관리자/API 경로 차단
+Disallow: /v1/admin/

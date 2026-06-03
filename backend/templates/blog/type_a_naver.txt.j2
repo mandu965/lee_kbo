@@ -1,0 +1,58 @@
+{{ title }}
+
+{{ intro }}
+
+■ {{ summary_header }} — {{ date_kr }}
+
+{% for g in games %}
+{{ loop.index }}. {{ g.home_team }} vs {{ g.away_team }} ({{ g.start_time_str }} / {{ g.stadium }})
+   - AI 예측 승자: {{ g.predicted_winner }} ({{ g.predicted_winner_prob }}%)
+   - 홈({{ g.home_team }}): {{ g.home_prob }}% / 원정({{ g.away_team }}): {{ g.away_prob }}%
+   - 신뢰도: {{ g.confidence_level }}{% if g.data_completeness < 80 %} ⚠ 데이터 {{ g.data_completeness }}%{% endif %}
+{% endfor %}
+
+■ {{ analysis_header }}
+
+{% for g in games %}
+▶ {{ g.home_modifier }} {{ g.home_team }} vs {{ g.away_modifier }} {{ g.away_team }}
+
+선발 투수
+  홈 {{ g.home_team }}: {% if g.home_starter != "미정" %}{{ g.home_starter }}{% if g.home_starter_era is not none %} (ERA {{ g.home_starter_era }}){% endif %}{% else %}{{ g.starter_unknown_phrase }}{% endif %}
+  원정 {{ g.away_team }}: {% if g.away_starter != "미정" %}{{ g.away_starter }}{% if g.away_starter_era is not none %} (ERA {{ g.away_starter_era }}){% endif %}{% else %}{{ g.starter_unknown_phrase }}{% endif %}
+{% if g.home_starter == "미정" or g.away_starter == "미정" %}
+  ※ {{ g.low_data_note }}
+{% endif %}
+
+{{ form_intro }}
+  {{ g.home_team }}: {{ g.home_form }} ({{ g.home_form_kr }})
+  {{ g.away_team }}: {{ g.away_form }} ({{ g.away_form_kr }})
+
+{{ connector }} AI가 주목한 핵심 요인:
+{% if g.key_factors %}{% for factor in g.key_factors %}
+  · {{ factor }}
+{% endfor %}{% else %}
+  · ELO 전력 기반 분석 (선발 투수 및 추가 데이터 반영 전)
+  · 최근 흐름: {{ g.home_team }} {{ g.home_form_kr }} / {{ g.away_team }} {{ g.away_form_kr }}
+{% endif %}
+
+AI 예측: {{ g.predicted_winner }}가 {{ g.predicted_winner_prob }}% 확률로 유리한 것으로 분석됩니다. ({{ g.prob_label }})
+
+{% endfor %}
+
+■ AI 예측 신뢰도 안내
+
+본 예측은 ELO 레이팅(40%), 선발 투수 지표(28%), 최근 흐름(14%), 홈 이점(8%), 날씨·불펜 등 여러 요소를 종합 분석한 통계 모델 결과입니다.
+선발 투수가 확정되지 않은 경기는 ELO 기반 초안 예측으로, 라인업 확정 후 업데이트됩니다.
+
+■ 이번 달 모델 적중률: {{ monthly_accuracy }}% ({{ monthly_correct }}/{{ monthly_total }}경기)
+
+{{ outro }}
+
+■ KBO AI 예측 시스템
+
+더 자세한 경기 분석과 실시간 예측은 아래에서 확인할 수 있습니다.
+https://lee-kbo-web.onrender.com/
+
+---
+본 예측은 통계 모델 기반 참고 정보이며, 실제 경기 결과와 다를 수 있습니다.
+스포츠 베팅 등 금전적 결정의 근거로 사용하지 마십시오.

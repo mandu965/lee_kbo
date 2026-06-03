@@ -1,0 +1,53 @@
+# ── 환경변수 (절대 커밋하지 말것) ────────────────────────────
+.env
+.env.local
+.env.production
+backend/.env
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+.eggs/
+*.egg
+
+# ── Node.js / Next.js ────────────────────────────────────────
+node_modules/
+.next/
+out/
+.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Docker ───────────────────────────────────────────────────
+# docker-compose.override.yml은 로컬 전용이면 제외
+# docker-compose.yml은 포함
+
+# ── 데이터 / 결과 ─────────────────────────────────────────────
+backend/results/*.csv
+
+# ── IDE ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── 임시 파일 ─────────────────────────────────────────────────
+*.log
+*.tmp
+/tmp/
+backend/outputs/

@@ -1,0 +1,43 @@
+{{ title }}
+
+{{ intro }}
+
+■ 이번 주 KBO AI 예측 성적 ({{ week_start }} ~ {{ week_end }})
+
+  총 예측: {{ weekly_total }}경기
+  적중: {{ weekly_correct }}경기
+  주간 적중률: {{ weekly_accuracy }}%
+  평균 브라이어 점수: {{ avg_brier }} (낮을수록 우수 / 0~1)
+
+■ 이번 달 누적 성적 ({{ season }}년 {{ month }}월)
+
+  누적 예측: {{ monthly_total }}경기
+  누적 적중: {{ monthly_correct }}경기
+  월 적중률: {{ monthly_accuracy }}%
+
+■ 최근 경기 예측 결과
+
+{% for r in recent_results %}
+{{ r.game_date }} {{ r.home_team }} vs {{ r.away_team }}
+  예측: {{ r.predicted_winner }} → 실제: {{ r.actual_winner }} [{{ "O" if r.is_correct else "X" }}]
+  홈 예측 확률: {{ r.home_prob }}%
+{% endfor %}
+
+■ 브라이어 점수 안내
+
+브라이어 점수는 확률 예측의 정확도를 측정하는 지표입니다. 0에 가까울수록 예측이 정확하고, 1에 가까울수록 부정확합니다. 단순 적중률과 달리 예측 확률의 정밀도까지 평가하기 때문에 모델 성능을 더 세밀하게 확인할 수 있습니다.
+
+  · 0.00~0.15: 매우 우수
+  · 0.15~0.25: 보통
+  · 0.25 이상: 개선 필요
+
+{{ outro }}
+
+■ KBO AI 예측 시스템
+
+예측 적중률 상세 기록과 오늘의 경기 예측은 아래에서 확인할 수 있습니다.
+https://lee-kbo-web.onrender.com/
+
+---
+본 통계는 AI 모델의 참고 지표이며 향후 성과를 보장하지 않습니다.
+스포츠 베팅 등 금전적 결정의 근거로 사용하지 마십시오.

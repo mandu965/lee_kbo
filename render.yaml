@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: lee_kbo
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: ENV
+        value: production
+      - key: DATABASE_WEB_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://lee-kbo-web.onrender.com,http://localhost:3000
+      - key: REDIS_URL
+        value: redis://localhost:6379/1
+      - key: DATABASE_URL
+        value: postgresql+asyncpg://placeholder:placeholder@localhost/placeholder
+    healthCheckPath: /health
+    autoDeploy: true
+
+  - type: web
+    name: lee-kbo-web
+    runtime: node
+    rootDir: frontend
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start -- -p $PORT
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NEXT_PUBLIC_API_URL
+        value: https://lee-kbo.onrender.com/v1
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://lee-kbo-web.onrender.com
+    autoDeploy: true

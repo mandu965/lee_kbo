@@ -1,0 +1,85 @@
+---
+title: "{{ title }}"
+category: KBO 경기 분석
+tags: [KBO, 야구, 팀순위, ELO, AI분석, 전력분석]
+---
+
+# {{ title }}
+
+{{ intro }}
+
+---
+
+## KBO ELO 전력 순위 ({{ as_of_date }} 기준)
+
+| AI 순위 | 팀 | ELO | 공식 순위 | 승 | 패 | 무 | 승률 | 연속 |
+|--------|---|-----|---------|---|---|---|------|------|
+{% for t in teams_by_elo %}| {{ loop.index }} | **{{ t.name }}** | {{ t.elo_rating|int }} | {{ t.rank }} | {{ t.wins }} | {{ t.losses }} | {{ t.draws }} | {{ "%.3f"|format(t.win_pct) }} | {{ t.streak }} |
+{% endfor %}
+
+> ELO 레이팅 기준점: 1500점 (시즌 초 전 팀 동일 출발)
+
+---
+
+## 이번 주 ELO 변동 (최근 7일)
+
+### 상승 팀 TOP 3
+
+| 순위 | 팀 | 7일 변동 | 경기 수 |
+|-----|----|---------|--------|
+{% for t in risers %}| {{ loop.index }} | **{{ t.name }}** | +{{ "%.1f"|format(t.elo_change_7d) }}점 | {{ t.games_played }}경기 |
+{% endfor %}
+
+### 하락 팀 TOP 3
+
+| 순위 | 팀 | 7일 변동 | 경기 수 |
+|-----|----|---------|--------|
+{% for t in fallers %}| {{ loop.index }} | **{{ t.name }}** | {{ "%.1f"|format(t.elo_change_7d) }}점 | {{ t.games_played }}경기 |
+{% endfor %}
+
+---
+
+## 공식 순위 vs AI 전력 — 주목 팀
+
+{% for item in rank_gap_teams %}
+### {{ item.name }} — 공식 {{ item.rank }}위 / ELO {{ item.elo_rank }}위
+
+{{ item.gap_desc }}
+
+---
+{% endfor %}
+
+## 팀별 현황 상세
+
+| 팀 | ELO | 공식순위 | 승 | 패 | 무 | 승률 | 연속 |
+|----|-----|---------|---|---|---|------|------|
+{% for t in teams_by_elo %}| **{{ t.name }}** | {{ t.elo_rating|int }} | {{ t.rank }} | {{ t.wins }} | {{ t.losses }} | {{ t.draws }} | {{ "%.3f"|format(t.win_pct) }} | {{ t.streak }} |
+{% endfor %}
+
+## ELO 레이팅 해석 방법
+
+ELO 레이팅은 체스에서 유래한 전력 평가 지표로, 다음 특성이 있습니다.
+
+- **강팀을 이기면** 더 많이 오르고, **약팀에 지면** 더 많이 떨어집니다
+- 공식 순위(단순 승률)와 달리 **상대 전력을 반영**합니다
+- 두 순위 차이가 클수록 일정 유불리 또는 최근 흐름이 반영된 것입니다
+
+ELO 레이팅 기준점은 시즌 초 전 팀 동일하게 **1500점**으로 출발합니다.
+
+- **1500점 이상**: 평균 이상 전력 보유
+- **1500점 미만**: 상대적으로 전력 열세
+- 시즌 초반에는 표본이 적어 변동폭이 크고, 시즌이 진행될수록 안정적인 지표가 됩니다
+
+{{ outro }}
+
+---
+
+## KBO AI 예측 시스템
+
+팀 전력 분석과 오늘의 경기 예측은 아래에서 확인할 수 있습니다.
+
+👉 [KBO Predictor — AI 경기 예측](https://lee-kbo-web.onrender.com/)
+
+---
+
+> **면책 고지**: 본 분석은 통계 모델 기반 참고 정보입니다. 실제 경기 결과와 다를 수 있습니다.
