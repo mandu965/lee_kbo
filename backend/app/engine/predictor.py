@@ -13,6 +13,7 @@
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Optional
@@ -36,13 +37,14 @@ from app.models import Game, PitcherStat, Player, Prediction, PredictionRun, Tea
 from app.time_utils import today_kst, now_kst
 
 WEIGHTS = {
-    "elo":      0.40,
-    "pitcher":  0.28,
-    "form":     0.14,
+    "elo":      0.38,
+    "pitcher":  0.27,
+    "form":     0.13,
     "home_adv": 0.08,
-    "park":     0.05,
+    "park":     0.04,
     "weather":  0.03,
     "bullpen":  0.02,
+    "h2h":      0.05,
 }
 
 HOME_ADVANTAGE = 0.03
@@ -77,7 +79,7 @@ class PredictionResult:
     confidence_level: str = "보통"
     # 각 지표 방향 일치 여부 (home 우세 기준 True/False/None)
     indicator_votes: dict = field(default_factory=dict)
-    model_version: str = "v2.1"
+    model_version: str = "v2.2"
 
 
 # ── DB 헬퍼 ──────────────────────────────────────────────────
@@ -152,6 +154,75 @@ async def _has_bullpen_game_logs(
     return count == len(set(team_ids))
 
 
+async def _get_starter_recent_avg(
+    session: AsyncSession, player_id: Optional[int], season: int, before_date: date
+) -> float:
+    """선발 최근 5경기 ERA → 0~1 정규화 점수 (높을수록 좋음).
+    ERA 4.5(리그 평균) → 0.5, 낮을수록 1에 가까움."""
+    if player_id is None:
+        return 0.5
+    stats = (
+        await session.execute(
+            select(PitcherStat)
+            .join(Game, PitcherStat.game_id == Game.id)
+            .where(
+                PitcherStat.player_id == player_id,
+                PitcherStat.season == season,
+                PitcherStat.game_id.is_not(None),
+                PitcherStat.is_starter == True,
+                Game.game_date < before_date,
+                Game.status == "final",
+            )
+            .order_by(desc(Game.game_date))
+            .limit(5)
+        )
+    ).scalars().all()
+    if not stats:
+        return 0.5
+    total_ip = sum(s.innings_pitched or 0.0 for s in stats)
+    total_er = sum(s.earned_runs or 0 for s in stats)
+    if total_ip <= 0:
+        return 0.5
+    recent_era = (total_er / total_ip) * 9
+    return round(1.0 / (1.0 + math.exp((recent_era - 4.5) / 1.5)), 4)
+
+
+async def _get_h2h_record(
+    session: AsyncSession, home_team_id: int, away_team_id: int,
+    before_date: date, n: int = 20,
+) -> tuple[float, int]:
+    """최근 N경기 상대전적 — (오늘 홈팀 기준 승률 0~1, 유효 경기 수)."""
+    stmt = (
+        select(Game)
+        .where(
+            Game.status == "final",
+            Game.game_date < before_date,
+            Game.home_score.is_not(None),
+            Game.away_score.is_not(None),
+            (
+                (Game.home_team_id == home_team_id) & (Game.away_team_id == away_team_id)
+            ) | (
+                (Game.home_team_id == away_team_id) & (Game.away_team_id == home_team_id)
+            ),
+        )
+        .order_by(desc(Game.game_date))
+        .limit(n)
+    )
+    games = (await session.execute(stmt)).scalars().all()
+    wins, total = 0, 0
+    for g in games:
+        if g.home_score == g.away_score:
+            continue
+        total += 1
+        if g.home_team_id == home_team_id and g.home_score > g.away_score:
+            wins += 1
+        elif g.away_team_id == home_team_id and g.away_score > g.home_score:
+            wins += 1
+    if total < 5:
+        return 0.5, total
+    return round(wins / total, 4), total
+
+
 def _factor_contribution(key: str, label: str, value: float, available: bool = True) -> dict:
     return {
         "key": key,
@@ -177,6 +248,8 @@ def _build_key_factors(
     bp_away: BullpenStatus | None,
     lineup_home: LineupStrength | None,
     lineup_away: LineupStrength | None,
+    h2h_win_rate: float = 0.5,
+    h2h_count: int = 0,
 ) -> list[str]:
     factors: list[str] = []
 
@@ -224,6 +297,12 @@ def _build_key_factors(
             f"({lineup_home.strength_ratio:.3f} vs {lineup_away.strength_ratio:.3f})"
         )
 
+    # 상대전적
+    if h2h_count >= 5 and abs(h2h_win_rate - 0.5) >= 0.1:
+        dominant = hn if h2h_win_rate >= 0.5 else an
+        pct = round(max(h2h_win_rate, 1 - h2h_win_rate) * 100)
+        factors.append(f"상대전적 {dominant} 우세 ({pct}%, 최근 {h2h_count}경기)")
+
     return factors[:5]
 
 
@@ -248,8 +327,10 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
     # ── 2. 선발 투수 ──────────────────────────────────────────
     era_h, whip_h = await _get_starter_era_whip(session, game.home_starter_id, season)
     era_a, whip_a = await _get_starter_era_whip(session, game.away_starter_id, season)
-    ps_home = pitcher_score(era_h, whip_h)
-    ps_away = pitcher_score(era_a, whip_a)
+    recent_avg_h = await _get_starter_recent_avg(session, game.home_starter_id, season, game.game_date)
+    recent_avg_a = await _get_starter_recent_avg(session, game.away_starter_id, season, game.game_date)
+    ps_home = pitcher_score(era_h, whip_h, recent_avg_h)
+    ps_away = pitcher_score(era_a, whip_a, recent_avg_a)
     adj_pitcher = pitcher_adjustment(ps_home, ps_away)
 
     # ── 3. 최근 흐름 ──────────────────────────────────────────
@@ -293,7 +374,13 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
     lineup_available = lineup_home.available and lineup_away.available
     adj_lineup = lineup_adjustment(lineup_home, lineup_away)
 
-    # ── 9. 가중 합산 ──────────────────────────────────────────
+    # ── 9. 상대전적 ───────────────────────────────────────────
+    h2h_win_rate, h2h_count = await _get_h2h_record(
+        session, home_team.id, away_team.id, game.game_date
+    )
+    h2h_available = h2h_count >= 5
+
+    # ── 10. 가중 합산 ─────────────────────────────────────────
     raw_prob = (
         WEIGHTS["elo"]      * elo_home_win
         + WEIGHTS["pitcher"]  * (0.5 + adj_pitcher)
@@ -302,6 +389,7 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
         + WEIGHTS["park"]     * 0.5   # 파크팩터 비활성 — 항상 중립(0.5)
         + WEIGHTS["weather"]  * (0.5 + adj_weather)
         + WEIGHTS["bullpen"]  * (0.5 + adj_bullpen)
+        + WEIGHTS["h2h"]      * h2h_win_rate
         + adj_lineup
     )
     home_prob = round(max(0.05, min(0.95, raw_prob)), 4)
@@ -317,6 +405,7 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
         form_home, form_away,
         home_form_str, away_form_str,
         park, weather, bp_home, bp_away, lineup_home, lineup_away,
+        h2h_win_rate, h2h_count,
     )
 
     starter_available = all([
@@ -327,7 +416,7 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
     weather_available = game.weather_temp is not None or game.weather_cond is not None
 
     missing_features: list[str] = []
-    completeness = 25.0  # ELO + 홈 이점
+    completeness = 20.0  # ELO + 홈 이점
     if starter_available:
         completeness += 25.0
     else:
@@ -349,6 +438,10 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
         completeness += 5.0
     else:
         missing_features.append("확정 타순 기반 라인업 강도")
+    if h2h_available:
+        completeness += 5.0
+    else:
+        missing_features.append(f"상대전적 (현재 {h2h_count}경기, 5경기 이상 필요)")
 
     factor_contributions = [
         _factor_contribution("elo", "ELO 전력", WEIGHTS["elo"] * (elo_home_win - 0.5)),
@@ -359,6 +452,7 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
         _factor_contribution("weather", "날씨", WEIGHTS["weather"] * adj_weather, weather_available),
         _factor_contribution("bullpen", "불펜 가용성", WEIGHTS["bullpen"] * adj_bullpen, bullpen_available),
         _factor_contribution("lineup", "확정 타순 강도", adj_lineup, lineup_available),
+        _factor_contribution("h2h", "상대전적", WEIGHTS["h2h"] * (h2h_win_rate - 0.5), h2h_available),
     ]
 
     # ── 9. 예측 신뢰도 계산 ───────────────────────────────────────
@@ -373,6 +467,7 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
         "날씨":   adj_weather >= 0 if weather_available else None,
         "불펜":   adj_bullpen >= 0 if bullpen_available else None,
         "타순":   adj_lineup >= 0 if lineup_available else None,
+        "상대전적": h2h_win_rate >= 0.5 if h2h_available else None,
     }
     valid_votes = {k: v for k, v in indicator_votes.items() if v is not None}
     if valid_votes:
