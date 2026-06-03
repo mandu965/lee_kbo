@@ -79,7 +79,7 @@ class PredictionResult:
     confidence_level: str = "보통"
     # 각 지표 방향 일치 여부 (home 우세 기준 True/False/None)
     indicator_votes: dict = field(default_factory=dict)
-    model_version: str = "v2.2"
+    model_version: str = "v2.3"
 
 
 # ── DB 헬퍼 ──────────────────────────────────────────────────
@@ -320,9 +320,11 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
 
     season = game.game_date.year
 
-    # ── 1. ELO ───────────────────────────────────────────────
-    elo_home_win = expected_win_prob(home_team.elo_rating, away_team.elo_rating)
-    elo_diff = round(home_team.elo_rating - away_team.elo_rating, 2)
+    # ── 1. ELO (홈/원정 분리 ELO 우선, 없으면 통합 ELO) ──────
+    home_elo_val = getattr(home_team, "home_elo", None) or home_team.elo_rating
+    away_elo_val = getattr(away_team, "away_elo", None) or away_team.elo_rating
+    elo_home_win = expected_win_prob(home_elo_val, away_elo_val)
+    elo_diff = round(home_elo_val - away_elo_val, 2)
 
     # ── 2. 선발 투수 ──────────────────────────────────────────
     era_h, whip_h = await _get_starter_era_whip(session, game.home_starter_id, season)

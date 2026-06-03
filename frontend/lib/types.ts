@@ -5,6 +5,8 @@ export interface TeamBase {
   name: string;
   short_name: string | null;
   elo_rating: number;
+  home_elo: number;
+  away_elo: number;
 }
 
 export interface TeamInGame extends TeamBase {

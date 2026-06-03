@@ -405,17 +405,31 @@ export default async function GameDetailPage({ params }: Props) {
         </div>
 
         <StatCompareRow
-          label="ELO 레이팅"
+          label="ELO 전력"
           awayVal={away_team.elo_rating.toFixed(0)}
           homeVal={home_team.elo_rating.toFixed(0)}
           awayBetter={eloBetter === "away"}
         />
 
-        {/* ELO 시각 바 */}
+        {/* 홈/원정 분리 ELO */}
+        <StatCompareRow
+          label="원정 ELO"
+          awayVal={away_team.away_elo.toFixed(0)}
+          homeVal={"—"}
+          awayBetter={away_team.away_elo > away_team.elo_rating}
+        />
+        <StatCompareRow
+          label="홈 ELO"
+          awayVal={"—"}
+          homeVal={home_team.home_elo.toFixed(0)}
+          awayBetter={false}
+        />
+
+        {/* ELO 시각 바 (홈 home_elo vs 원정 away_elo) */}
         <div className="px-1 pb-2">
-          <EloBar home={home_team.elo_rating} away={away_team.elo_rating} />
+          <EloBar home={home_team.home_elo} away={away_team.away_elo} />
           <p className="text-center text-xs text-slate-600 mt-1">
-            차이 {eloDiff}점 ({eloBetter === "home" ? (home_team.short_name ?? home_team.name) : (away_team.short_name ?? away_team.name)} 우위)
+            홈/원정 ELO 기준 — 차이 {Math.abs(home_team.home_elo - away_team.away_elo).toFixed(0)}점
           </p>
         </div>
 

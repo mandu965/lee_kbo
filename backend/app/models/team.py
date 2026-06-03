@@ -16,6 +16,8 @@ class Team(Base):
     short_name: Mapped[str | None] = mapped_column(String(20))
     stadium: Mapped[str | None] = mapped_column(String(100))
     elo_rating: Mapped[float] = mapped_column(Float, default=1500.0)
+    home_elo: Mapped[float] = mapped_column(Float, default=1500.0)
+    away_elo: Mapped[float] = mapped_column(Float, default=1500.0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

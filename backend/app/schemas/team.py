@@ -8,6 +8,8 @@ class TeamBase(BaseModel):
     name: str
     short_name: str | None = None
     elo_rating: float
+    home_elo: float = 1500.0
+    away_elo: float = 1500.0
 
     model_config = {"from_attributes": True}
 

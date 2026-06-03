@@ -473,8 +473,10 @@ async def task_update_elo() -> None:
 
                     if game.home_score > game.away_score:
                         winner, loser = home_team, away_team
+                        home_won = True
                     elif game.away_score > game.home_score:
                         winner, loser = away_team, home_team
+                        home_won = False
                     else:
                         continue  # 무승부 (KBO 는 드물지만 발생)
 
@@ -484,6 +486,17 @@ async def task_update_elo() -> None:
 
                     winner.elo_rating = new_w
                     loser.elo_rating = new_l
+
+                    # 홈/원정 분리 ELO 업데이트
+                    # 홈팀 home_elo vs 원정팀 away_elo 기준으로 별도 계산
+                    home_elo_before = home_team.home_elo
+                    away_elo_before = away_team.away_elo
+                    if home_won:
+                        new_home, new_away = elo_engine.update_elo(home_elo_before, away_elo_before, game.game_date)
+                    else:
+                        new_away, new_home = elo_engine.update_elo(away_elo_before, home_elo_before, game.game_date)
+                    home_team.home_elo = new_home
+                    away_team.away_elo = new_away
 
                     # ELO 변동 히스토리 기록
                     session.add(EloHistory(
