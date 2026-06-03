@@ -7,6 +7,7 @@ from app.config import settings
 from app.database import engine, Base
 from app.scheduler.main import setup_scheduler
 from app.routers import games, teams, pitchers, predictions, stats, admin, players, analytics
+from app.routers import blog
 
 
 @asynccontextmanager
@@ -48,6 +49,7 @@ app.include_router(stats.router, prefix="/v1")
 app.include_router(admin.router, prefix="/v1")
 app.include_router(players.router, prefix="/v1")
 app.include_router(analytics.router, prefix="/v1")
+app.include_router(blog.router, prefix="/v1")
 
 
 @app.get("/health")

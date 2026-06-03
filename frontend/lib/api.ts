@@ -37,10 +37,10 @@ export const getGamesByDate = (date: string) =>
   get<GameListResponse>(`/games?date=${date}`, 3600);
 
 export const getGame = (id: number) =>
-  get<GameResponse>(`/games/${id}`);                    // SSR
+  get<GameResponse>(`/games/${id}`, 60);               // ISR 1분
 
 export const getGamePrediction = (id: number) =>
-  get<PredictionInGame>(`/games/${id}/prediction`);
+  get<PredictionInGame>(`/games/${id}/prediction`, 60); // ISR 1분
 
 // ── 팀 ─────────────────────────────────────────────────────────
 export const getTeams = () =>
@@ -97,3 +97,12 @@ export const getPitcherRankings = (params?: { sort?: string; team?: string; limi
 
 export const getTeamRoster = (id: number) =>
   get<any>(`/teams/${id}/roster`, 1800);
+
+// ── 블로그 ───────────────────────────────────────────────────────
+import type { BlogListResponse, BlogPostDetail } from "./types";
+
+export const getBlogPosts = (page = 1, limit = 20) =>
+  get<BlogListResponse>(`/blog/posts?page=${page}&limit=${limit}`, 1800);
+
+export const getBlogPost = (date: string, slug: string) =>
+  get<BlogPostDetail>(`/blog/posts/${date}/${slug}`, 1800);

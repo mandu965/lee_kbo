@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: "/players",  label: "선수",  icon: "📊" },
   { href: "/schedule", label: "일정",  icon: "📅" },
   { href: "/history",  label: "예측",  icon: "🎯" },
+  { href: "/blog",     label: "글",    icon: "✍️" },
   { href: "/glossary", label: "용어",  icon: "📖" },
 ];
 
@@ -106,7 +107,7 @@ export default function NavBar() {
         }}
       >
         <div className="flex items-center">
-          {NAV_LINKS.map(({ href, label, icon }) => {
+          {NAV_LINKS.filter(({ href }) => href !== "/glossary").map(({ href, label, icon }) => {
             const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
               <Link

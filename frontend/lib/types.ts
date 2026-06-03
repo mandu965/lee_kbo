@@ -365,3 +365,24 @@ export interface StreakResponse {
   streak_type: "hit" | "miss" | "none";
   last_10_accuracy: number;
 }
+
+// ── 블로그 ───────────────────────────────────────────────────────
+export interface BlogPost {
+  date: string;
+  slug: string;
+  title: string;
+  category: string;
+  created_at: string | null;
+}
+
+export interface BlogPostDetail extends BlogPost {
+  content: string;
+  updated_at: string | null;
+}
+
+export interface BlogListResponse {
+  total: number;
+  page: number;
+  limit: number;
+  posts: BlogPost[];
+}
