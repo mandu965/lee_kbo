@@ -50,6 +50,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: kbo_frontend
+    command: sh -lc "rm -rf /app/.next/* /app/.next/.[!.]* 2>/dev/null || true; npm run dev"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8002/v1
       INTERNAL_API_URL: http://api:8002/v1
