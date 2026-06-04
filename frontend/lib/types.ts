@@ -107,6 +107,10 @@ export interface StarterInfo {
   wins: number | null;
   losses: number | null;
   innings_pitched: number | null;
+  games: number | null;        // 시즌 등판 수
+  k_per_9: number | null;      // 9이닝당 탈삼진
+  bb_per_9: number | null;     // 9이닝당 볼넷
+  hr_per_9: number | null;     // 9이닝당 피홈런
   recent_summary: StarterRecentSummary | null;
   recent_games: StarterAppearanceInfo[];
   is_confirmed: boolean;

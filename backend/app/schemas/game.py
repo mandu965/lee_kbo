@@ -12,6 +12,12 @@ class StarterInfo(BaseModel):
     wins: int | None = None
     losses: int | None = None
     innings_pitched: float | None = None
+    # 시즌 등판 수
+    games: int | None = None
+    # 9이닝 환산 비율 (시즌 기준)
+    k_per_9: float | None = None
+    bb_per_9: float | None = None
+    hr_per_9: float | None = None
     recent_summary: "StarterRecentSummary | None" = None
     recent_games: list["StarterAppearanceInfo"] = []
     # True=공식 확정, False=DB 이닝 최다 투수 추정

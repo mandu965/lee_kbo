@@ -99,6 +99,13 @@ async def _starter_recent_form(
     return summary, games
 
 
+def _per_9(count: int | None, innings: float | None) -> float | None:
+    """이닝당 9이닝 환산 비율 (K/9, BB/9, HR/9). 이닝이 0이거나 값이 없으면 None."""
+    if count is None or not innings:
+        return None
+    return round(count * 9 / innings, 2)
+
+
 async def _starter_info(
     session: AsyncSession,
     player_id: Optional[int],
@@ -140,6 +147,10 @@ async def _starter_info(
         wins=stat.wins if stat else None,
         losses=stat.losses if stat else None,
         innings_pitched=stat.innings_pitched if stat else None,
+        games=stat.games if stat else None,
+        k_per_9=_per_9(stat.strikeouts, stat.innings_pitched) if stat else None,
+        bb_per_9=_per_9(stat.walks, stat.innings_pitched) if stat else None,
+        hr_per_9=_per_9(stat.home_runs_allowed, stat.innings_pitched) if stat else None,
         recent_summary=recent_summary,
         recent_games=recent_games,
         is_confirmed=True,
@@ -290,6 +301,10 @@ async def _team_ace(session: AsyncSession, team_id: int, season: int) -> Optiona
         k_bb_ratio=k_bb,
         wins=stat.wins, losses=stat.losses,
         innings_pitched=stat.innings_pitched,
+        games=stat.games,
+        k_per_9=_per_9(stat.strikeouts, stat.innings_pitched),
+        bb_per_9=_per_9(stat.walks, stat.innings_pitched),
+        hr_per_9=_per_9(stat.home_runs_allowed, stat.innings_pitched),
         is_confirmed=False,
     )
 

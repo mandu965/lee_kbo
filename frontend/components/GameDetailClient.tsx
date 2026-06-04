@@ -687,6 +687,38 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
     </div>
   );
 
+  const starterMatchup = (() => {
+    const away = starters?.away;
+    const home = starters?.home;
+    const rows: { label: string; awayVal: string; homeVal: string; awayBetter: boolean | undefined }[] = [];
+    if (!away || !home) return { rows, summary: null as string | null };
+    // tie: 이 값 미만의 차이는 노이즈로 보고 우열을 가리지 않음 (박빙 처리)
+    const specs: { label: string; a: number | null; h: number | null; lower: boolean; digits: number; tie: number }[] = [
+      { label: "ERA", a: away.era, h: home.era, lower: true, digits: 2, tie: 0.3 },
+      { label: "WHIP", a: away.whip, h: home.whip, lower: true, digits: 2, tie: 0.05 },
+      { label: "K/9", a: away.k_per_9, h: home.k_per_9, lower: false, digits: 1, tie: 0.5 },
+      { label: "BB/9", a: away.bb_per_9, h: home.bb_per_9, lower: true, digits: 1, tie: 0.3 },
+      { label: "HR/9", a: away.hr_per_9, h: home.hr_per_9, lower: true, digits: 1, tie: 0.2 },
+    ];
+    let awayWins = 0;
+    let homeWins = 0;
+    for (const s of specs) {
+      if (s.a == null || s.h == null) continue;
+      const awayBetter =
+        Math.abs(s.a - s.h) < s.tie ? undefined : s.lower ? s.a < s.h : s.a > s.h;
+      if (awayBetter === true) awayWins += 1;
+      else if (awayBetter === false) homeWins += 1;
+      rows.push({ label: s.label, awayVal: s.a.toFixed(s.digits), homeVal: s.h.toFixed(s.digits), awayBetter });
+    }
+    const summary =
+      rows.length === 0 ? null
+      : awayWins > homeWins ? `원정 선발이 ${awayWins}개 지표 우위`
+      : homeWins > awayWins ? `홈 선발이 ${homeWins}개 지표 우위`
+      : awayWins === 0 ? "전 지표 박빙"
+      : `${awayWins} : ${homeWins} 호각`;
+    return { rows, summary };
+  })();
+
   const pitchersContent = (
     <div className="space-y-4">
       {starters ? (
@@ -730,6 +762,25 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
                   </div>
                 </div>
 
+                {starter && (starter.wins != null || starter.losses != null || starter.games != null || starter.innings_pitched != null) && (
+                  <div className="mb-3 space-y-1 border-t border-slate-700/40 pt-3">
+                    <p className="text-xs font-semibold text-slate-400">
+                      {[
+                        (starter.wins != null || starter.losses != null) ? `${starter.wins ?? 0}승 ${starter.losses ?? 0}패` : null,
+                        starter.games != null ? `${starter.games}등판` : null,
+                        starter.innings_pitched != null ? fmtIP(starter.innings_pitched) : null,
+                      ].filter(Boolean).join(" · ")}
+                    </p>
+                    {(starter.k_per_9 != null || starter.bb_per_9 != null || starter.hr_per_9 != null) && (
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
+                        {starter.k_per_9 != null && <span>K/9 <b className="font-bold text-slate-300">{starter.k_per_9.toFixed(1)}</b></span>}
+                        {starter.bb_per_9 != null && <span>BB/9 <b className="font-bold text-slate-300">{starter.bb_per_9.toFixed(1)}</b></span>}
+                        {starter.hr_per_9 != null && <span>HR/9 <b className="font-bold text-slate-300">{starter.hr_per_9.toFixed(1)}</b></span>}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {starter?.recent_summary && (
                   <div className="rounded-lg bg-slate-800/60 px-3 py-2 text-xs text-slate-400">
                     최근 {starter.recent_summary.games}경기 평균 {fmtIP(starter.recent_summary.avg_innings)}
@@ -762,6 +813,33 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
               </div>
             ))}
           </div>
+
+          {starterMatchup.rows.length > 0 && (
+            <div className="mt-4 rounded-xl border border-slate-700/50 bg-slate-900/40 p-4">
+              <div className="mb-1 grid grid-cols-3 items-center">
+                <p className="truncate text-right text-sm font-black text-blue-400">{starters.away?.name}</p>
+                <p className="text-center text-[11px] font-bold text-slate-500">선발 맞대결</p>
+                <p className="truncate text-left text-sm font-black text-red-400">{starters.home?.name}</p>
+              </div>
+              {starterMatchup.rows.map((row) => (
+                <StatCompareRow
+                  key={row.label}
+                  label={row.label}
+                  awayVal={row.awayVal}
+                  homeVal={row.homeVal}
+                  awayBetter={row.awayBetter}
+                />
+              ))}
+              {starterMatchup.summary && (
+                <p className="mt-2 border-t border-slate-700/40 pt-2 text-center text-xs">
+                  <span className="text-slate-500">종합 · </span>
+                  <span className="font-bold text-slate-300">{starterMatchup.summary}</span>
+                </p>
+              )}
+              <p className="mt-1 text-center text-[10px] text-slate-600">ERA·WHIP·BB/9·HR/9는 낮을수록, K/9는 높을수록 유리</p>
+            </div>
+          )}
+
           {(starters.home?.is_confirmed === false || starters.away?.is_confirmed === false) && (
             <p className="mt-3 text-[11px] text-slate-500">
               <span className="font-bold text-slate-400">예상</span> 표시는 예고 선발 미발표로, 팀 시즌 주력 투수를 대신 보여 줍니다.
