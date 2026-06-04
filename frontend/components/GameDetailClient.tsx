@@ -356,12 +356,24 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
   const homeHomeElo = home_team.home_elo ?? home_team.elo_rating;
   const gameAnalysis = buildGameAnalysis(game, prediction);
 
+  // 종료 경기용 예측 적중 여부
+  const isDraw = isFinished && (game.home_score ?? 0) === (game.away_score ?? 0);
+  const predictedHomeWin = prediction ? prediction.home_win_prob >= prediction.away_win_prob : null;
+  const predictedTeamName =
+    predictedHomeWin == null ? null
+    : predictedHomeWin ? (home_team.short_name ?? home_team.name)
+    : (away_team.short_name ?? away_team.name);
+  const predictionHit =
+    isFinished && !isDraw && predictedHomeWin != null ? predictedHomeWin === homeWin : null;
+
   const previewContent = (
     <div className="space-y-4">
-      {prediction && !isFinished ? (
+      {!prediction ? (
+        <LoadingCard text="예측 요약을 불러오는 중입니다." />
+      ) : (
         <div className="rounded-2xl border border-slate-700 bg-slate-800 p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-black text-slate-200">데이터 예측</h2>
+            <h2 className="text-sm font-black text-slate-200">{isFinished ? "경기 전 예측" : "데이터 예측"}</h2>
             <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] text-slate-600">
               ELO + 선발 + 흐름 + 환경
             </span>
@@ -374,37 +386,52 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
             awayTeamName={away_team.short_name ?? away_team.name}
           />
 
-          <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-700/30 p-3 text-xs">
-            <div>
-              <p className="text-slate-500">데이터 완성도</p>
-              <p className="mt-1 font-black text-slate-200">
-                {prediction.data_completeness != null ? `${prediction.data_completeness.toFixed(0)}%` : "계산 중"}
-              </p>
+          {isFinished ? (
+            <div className="rounded-xl bg-slate-700/30 p-3 text-xs">
+              {isDraw || predictionHit == null ? (
+                <p className="text-center text-slate-400">무승부로 종료된 경기입니다.</p>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">예측 결과</span>
+                  <span className={`font-black ${predictionHit ? "text-emerald-400" : "text-red-400"}`}>
+                    {predictedTeamName} 승 예측 · {predictionHit ? "적중" : "빗나감"}
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="text-right">
-              <p className="text-slate-500">직전 예측 대비</p>
-              <p className={`mt-1 font-black ${
-                (prediction.change_from_previous_pp ?? 0) > 0 ? "text-red-400" :
-                (prediction.change_from_previous_pp ?? 0) < 0 ? "text-blue-400" :
-                "text-slate-400"
-              }`}>
-                {prediction.change_from_previous_pp != null
-                  ? `홈 ${prediction.change_from_previous_pp > 0 ? "+" : ""}${prediction.change_from_previous_pp.toFixed(1)}%p`
-                  : "첫 예측"}
-              </p>
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-700/30 p-3 text-xs">
+                <div>
+                  <p className="text-slate-500">데이터 완성도</p>
+                  <p className="mt-1 font-black text-slate-200">
+                    {prediction.data_completeness != null ? `${prediction.data_completeness.toFixed(0)}%` : "계산 중"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-500">직전 예측 대비</p>
+                  <p className={`mt-1 font-black ${
+                    (prediction.change_from_previous_pp ?? 0) > 0 ? "text-red-400" :
+                    (prediction.change_from_previous_pp ?? 0) < 0 ? "text-blue-400" :
+                    "text-slate-400"
+                  }`}>
+                    {prediction.change_from_previous_pp != null
+                      ? `홈 ${prediction.change_from_previous_pp > 0 ? "+" : ""}${prediction.change_from_previous_pp.toFixed(1)}%p`
+                      : "첫 예측"}
+                  </p>
+                </div>
+              </div>
 
-          {prediction.key_factors.length > 0 && (
-            <div className="space-y-2 pt-1">
-              {prediction.key_factors.map((factor, index) => (
-                <FactorCard key={`${factor}-${index}`} text={factor} />
-              ))}
-            </div>
+              {prediction.key_factors.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  {prediction.key_factors.map((factor, index) => (
+                    <FactorCard key={`${factor}-${index}`} text={factor} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
-      ) : (
-        <LoadingCard text="예측 요약을 불러오는 중입니다." />
       )}
 
       {gameAnalysis.length > 0 && (
