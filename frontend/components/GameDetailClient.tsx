@@ -104,13 +104,22 @@ const PREDICTION_TYPE_LABEL: Record<string, string> = {
   manual: "수동 갱신",
 };
 
+const KST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  month: "numeric",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 function formatRunTime(value: string) {
-  return new Date(value).toLocaleString("ko-KR", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const parts = KST_DATE_TIME_FORMATTER.formatToParts(new Date(value));
+  const month = parts.find((part) => part.type === "month")?.value ?? "--";
+  const day = parts.find((part) => part.type === "day")?.value ?? "--";
+  const hour = parts.find((part) => part.type === "hour")?.value ?? "--";
+  const minute = parts.find((part) => part.type === "minute")?.value ?? "--";
+  return `${month}.${day} ${hour}:${minute}`;
 }
 
 function fmtIP(ip: number | null | undefined): string {
@@ -680,6 +689,62 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
                               />
                             </div>
                             <p className="mt-1 text-xs font-semibold text-slate-400">{fmtIP(bp.recent_innings)} 등판</p>
+                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{bp.description}</p>
+
+                            {bp.pitchers.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                {bp.pitchers.map((pitcher) => (
+                                  <div key={pitcher.player_id} className="rounded-lg bg-slate-800/60 p-2.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div>
+                                        <span className="text-sm font-bold text-slate-200">{pitcher.name}</span>
+                                        <span className="ml-1.5 text-xs text-slate-500">
+                                          {pitcher.saves > 0 ? `${pitcher.saves}SV ` : ""}
+                                          {pitcher.holds > 0 ? `${pitcher.holds}HLD` : ""}
+                                        </span>
+                                      </div>
+                                      <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${
+                                        pitcher.availability === "휴식 권장" ? "bg-red-900/40 text-red-400" :
+                                        pitcher.availability === "주의" ? "bg-yellow-900/40 text-yellow-400" :
+                                        "bg-emerald-900/40 text-emerald-400"
+                                      }`}>
+                                        {pitcher.availability}
+                                      </span>
+                                    </div>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      3일 {pitcher.appearances}경기 · {fmtIP(pitcher.recent_innings)}
+                                      {pitcher.consecutive_days > 0 ? ` · ${pitcher.consecutive_days}일 연속` : ""}
+                                    </p>
+                                    {pitcher.logs.map((log) => (
+                                      <div
+                                        key={`${pitcher.player_id}-${log.game_date}-${log.opponent_name}`}
+                                        className="mt-1.5 grid text-xs text-slate-600"
+                                        style={{ gridTemplateColumns: "2.8rem 1fr auto" }}
+                                      >
+                                        <span className="tabular-nums">{log.game_date.slice(5).replace("-", ".")}</span>
+                                        <span>vs {log.opponent_name || "-"}</span>
+                                        <span className="text-right font-bold text-slate-400">{fmtIP(log.innings_pitched)}</span>
+                                        <span />
+                                        <span className="col-span-2 text-[11px]">
+                                          {log.hits ?? 0}H {log.walks ?? 0}BB {log.strikeouts ?? 0}K {log.runs ?? 0}R
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {bp.injured_pitchers.length > 0 && (
+                              <div className="mt-3 rounded-lg border border-red-900/60 bg-red-950/20 p-2">
+                                <p className="text-[10px] font-bold text-red-400">투수 부상자 명단</p>
+                                {bp.injured_pitchers.map((pitcher) => (
+                                  <p key={pitcher.player_id} className="mt-1 text-[10px] text-red-300">
+                                    {pitcher.name} · {pitcher.status}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
                           </>
                         ) : (
                           <p className="text-xs text-slate-600">데이터 없음</p>
