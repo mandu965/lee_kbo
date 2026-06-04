@@ -510,6 +510,31 @@ async def _build_game_summary_response(session: AsyncSession, game: Game) -> Gam
     if away_starter is None and away_team:
         away_starter = await _team_ace(session, away_team.id, season)
 
+    prediction_summary = _prediction_schema(
+        pred, runs[0] if runs else None, runs[1] if len(runs) > 1 else None
+    )
+
+    if prediction_summary is not None:
+        bullpen_team_count = await session.scalar(
+            select(func.count(func.distinct(Player.team_id)))
+            .select_from(PitcherStat)
+            .join(Game, PitcherStat.game_id == Game.id)
+            .join(Player, PitcherStat.player_id == Player.id)
+            .where(
+                PitcherStat.game_id.is_not(None),
+                PitcherStat.is_starter == False,
+                Player.team_id.in_([game.home_team_id, game.away_team_id]),
+                Game.game_date >= game.game_date - timedelta(days=3),
+                Game.game_date < game.game_date,
+                Game.status == "final",
+            )
+        )
+        if bullpen_team_count == 2:
+            bp_home = await calc_bullpen_fatigue(session, game.home_team_id, game.game_date)
+            bp_away = await calc_bullpen_fatigue(session, game.away_team_id, game.game_date)
+            prediction_summary.bullpen_home = BullpenInfo.model_validate(bp_home)
+            prediction_summary.bullpen_away = BullpenInfo.model_validate(bp_away)
+
     return GameResponse(
         id=game.id,
         game_date=game.game_date,
@@ -538,7 +563,7 @@ async def _build_game_summary_response(session: AsyncSession, game: Game) -> Gam
         ),
         home_score=game.home_score,
         away_score=game.away_score,
-        prediction=_prediction_schema(pred, runs[0] if runs else None, runs[1] if len(runs) > 1 else None),
+        prediction=prediction_summary,
         starters=StartersInGame(home=home_starter, away=away_starter),
         home_trend=None,
         away_trend=None,
