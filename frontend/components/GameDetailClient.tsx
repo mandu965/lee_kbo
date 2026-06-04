@@ -58,18 +58,20 @@ function StatCompareRow({
 }
 
 function FactorCard({ text }: { text: string }) {
-  const isPositive = /홈팀 우위|홈 우위|홈 최근|파크팩터/.test(text);
-  const isNegative = /원정 우위|소진|경고/.test(text);
+  // key_factor는 팀명(한화/두산)으로 표기되어 자유 텍스트만으로는 홈/원정 유불리를
+  // 판별할 수 없다. 신뢰성 있게 구분 가능한 위험 신호만 강조하고 나머지는 중립 처리.
+  const isSevere = /소진|⚠️/.test(text);
+  const isCaution = /경고/.test(text);
   return (
     <div className={`flex items-start gap-3 rounded-lg border p-3 ${
-      isPositive ? "border-blue-800/40 bg-blue-950/30" :
-      isNegative ? "border-red-800/40 bg-red-950/30" :
+      isSevere ? "border-red-800/40 bg-red-950/30" :
+      isCaution ? "border-yellow-800/40 bg-yellow-950/30" :
       "border-slate-600/40 bg-slate-700/30"
     }`}>
       <span className={`mt-0.5 shrink-0 text-base ${
-        isPositive ? "text-blue-400" : isNegative ? "text-red-400" : "text-slate-400"
+        isSevere ? "text-red-400" : isCaution ? "text-yellow-400" : "text-slate-400"
       }`}>
-        {isPositive ? "▲" : isNegative ? "▼" : "•"}
+        {isSevere || isCaution ? "▼" : "•"}
       </span>
       <p className="text-sm leading-relaxed text-slate-200">{text}</p>
     </div>
@@ -562,13 +564,6 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
           <div className="py-3 text-center text-xs text-slate-500">최근 흐름 상세 데이터 로딩 중</div>
         )}
       </div>
-
-      <BullpenUsageSection
-        awayTeamName={away_team.short_name ?? away_team.name}
-        homeTeamName={home_team.short_name ?? home_team.name}
-        bullpenAway={prediction?.bullpen_away ?? null}
-        bullpenHome={prediction?.bullpen_home ?? null}
-      />
     </div>
   );
 
@@ -601,11 +596,33 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
                 {lineup?.strength_available && (
                   <div className="mb-3 rounded-lg bg-slate-800/70 px-3 py-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500">라인업 강도</span>
-                      <span className="font-black text-slate-200">
+                      <span className="text-slate-500">라인업 강도 <span className="text-slate-600">(예상 주전 대비)</span></span>
+                      <span className={`font-black ${
+                        lineup.strength_ratio != null && lineup.strength_ratio >= 1
+                          ? "text-emerald-400"
+                          : lineup.strength_ratio != null && lineup.strength_ratio < 0.95
+                            ? "text-orange-400"
+                            : "text-slate-200"
+                      }`}>
                         {lineup.strength_ratio != null ? `${(lineup.strength_ratio * 100).toFixed(0)}%` : "-"}
                       </span>
                     </div>
+                    {(lineup.excluded_regulars.length > 0 || lineup.replacements.length > 0) && (
+                      <div className="mt-2 space-y-1 border-t border-slate-700/50 pt-2 text-[11px]">
+                        {lineup.excluded_regulars.length > 0 && (
+                          <p className="text-slate-500">
+                            <span className="font-bold text-orange-400/80">빠진 주전</span>{" "}
+                            {lineup.excluded_regulars.map((p) => p.ops != null ? `${p.name}(OPS ${p.ops.toFixed(3)})` : p.name).join(", ")}
+                          </p>
+                        )}
+                        {lineup.replacements.length > 0 && (
+                          <p className="text-slate-500">
+                            <span className="font-bold text-slate-400">대체 투입</span>{" "}
+                            {lineup.replacements.map((p) => p.ops != null ? `${p.name}(OPS ${p.ops.toFixed(3)})` : p.name).join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -660,7 +677,14 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
               <div key={side} className={`rounded-xl border ${borderColor} bg-slate-700/30 p-4`}>
                 <div className="mb-3">
                   <div className="flex items-baseline justify-between">
-                    <p className="text-base font-black text-slate-100">{starter?.name ?? "미정"}</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <p className="text-base font-black text-slate-100">{starter?.name ?? "미정"}</p>
+                      {starter && !starter.is_confirmed && (
+                        <span className="rounded bg-slate-600/50 px-1.5 py-0.5 text-[10px] font-bold text-slate-400">
+                          예상
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs text-slate-500">{side}</span>
                   </div>
                   <div className="mt-2 flex gap-3">
@@ -711,6 +735,11 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
               </div>
             ))}
           </div>
+          {(starters.home?.is_confirmed === false || starters.away?.is_confirmed === false) && (
+            <p className="mt-3 text-[11px] text-slate-500">
+              <span className="font-bold text-slate-400">예상</span> 표시는 예고 선발 미발표로, 팀 시즌 주력 투수를 대신 보여 줍니다.
+            </p>
+          )}
         </div>
       ) : (
         <LoadingCard text="선발 상세 데이터를 불러오는 중입니다." />
@@ -729,7 +758,10 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
               {prediction.park && (
                 <div>
                   <div className="mb-1 flex items-center justify-between">
-                    <p className="text-xs font-bold text-slate-400">구장 파크팩터</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-bold text-slate-400">구장 파크팩터</p>
+                      <span className="rounded-full bg-slate-700 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">참고 · 승률 미반영</span>
+                    </div>
                     <span className={`text-sm font-black ${
                       prediction.park.factor > 1.03 ? "text-orange-400" :
                       prediction.park.factor < 0.97 ? "text-cyan-400" :

@@ -260,10 +260,12 @@ def _build_key_factors(
     if abs(elo_diff) >= 15:
         factors.append(f"ELO 레이팅 {elo_diff:+.0f} ({'홈' if elo_diff > 0 else '원정'} 우위)")
 
-    # 투수
+    # 투수 — 우위 팀의 (더 높은) 점수를 먼저 표기해 이름·숫자 순서를 일치시킴
     if abs(ps_home - ps_away) > 0.001:
-        better = hn if ps_home > ps_away else an
-        factors.append(f"선발 투수 지표 {better} 우위 ({ps_home:.3f} vs {ps_away:.3f})")
+        home_better = ps_home > ps_away
+        better = hn if home_better else an
+        better_val, worse_val = (ps_home, ps_away) if home_better else (ps_away, ps_home)
+        factors.append(f"선발 투수 지표 {better} 우위 ({better_val:.3f} vs {worse_val:.3f})")
 
     # 최근 흐름
     hw = home_form_str.count("W")
@@ -291,10 +293,16 @@ def _build_key_factors(
         and lineup_home.available and lineup_away.available
         and lineup_home.strength_ratio is not None and lineup_away.strength_ratio is not None
     ):
-        better = hn if lineup_home.strength_ratio > lineup_away.strength_ratio else an
+        home_better = lineup_home.strength_ratio > lineup_away.strength_ratio
+        better = hn if home_better else an
+        better_ratio, worse_ratio = (
+            (lineup_home.strength_ratio, lineup_away.strength_ratio)
+            if home_better
+            else (lineup_away.strength_ratio, lineup_home.strength_ratio)
+        )
         factors.append(
             f"확정 타순 강도 {better} 우위 "
-            f"({lineup_home.strength_ratio:.3f} vs {lineup_away.strength_ratio:.3f})"
+            f"({better_ratio:.3f} vs {worse_ratio:.3f})"
         )
 
     # 상대전적
