@@ -133,13 +133,7 @@ function fmtIP(ip: number | null | undefined): string {
 }
 
 function fmtUpdatedAt(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
-  if (diffMin < 1) return "방금 전";
-  if (diffMin < 60) return `${diffMin}분 전`;
-  if (diffMin < 1440) return `${Math.floor(diffMin / 60)}시간 전`;
-  return `${Math.floor(diffMin / 1440)}일 전`;
+  return formatRunTime(iso);
 }
 
 function buildGameAnalysis(game: GameResponse, prediction: PredictionInGame | null): string[] {
