@@ -64,6 +64,12 @@ class TeamRecentTrendInfo(BaseModel):
     run_diff: int
     avg_ops: float | None = None
     ops_games: int = 0
+    avg_hits: float | None = None
+    avg_home_runs: float | None = None
+    avg_walks: float | None = None
+    avg_strikeouts: float | None = None
+    walk_strikeout_ratio: float | None = None
+    stat_games: int = 0
     recent_games: list[TeamRecentGameInfo] = []
 
 

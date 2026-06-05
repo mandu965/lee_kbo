@@ -156,6 +156,12 @@ export interface TeamRecentTrendInfo {
   run_diff: number;
   avg_ops: number | null;
   ops_games: number;
+  avg_hits: number | null;
+  avg_home_runs: number | null;
+  avg_walks: number | null;
+  avg_strikeouts: number | null;
+  walk_strikeout_ratio: number | null;
+  stat_games: number;
   recent_games: TeamRecentGameInfo[];
 }
 

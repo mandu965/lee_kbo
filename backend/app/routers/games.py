@@ -213,6 +213,30 @@ async def _team_recent_trend(
             .limit(n)
         )
     ).scalars().all()
+
+    stat_rows = (
+        await session.execute(
+            select(
+                TeamGameStat.hits,
+                TeamGameStat.home_runs,
+                TeamGameStat.walks,
+                TeamGameStat.strikeouts,
+            )
+            .join(Game, TeamGameStat.game_id == Game.id)
+            .where(
+                TeamGameStat.team_id == team_id,
+                Game.game_date < before,
+            )
+            .order_by(desc(Game.game_date), desc(Game.id))
+            .limit(n)
+        )
+    ).all()
+    stat_count = len(stat_rows)
+    total_hits = sum(row.hits or 0 for row in stat_rows)
+    total_home_runs = sum(row.home_runs or 0 for row in stat_rows)
+    total_walks = sum(row.walks or 0 for row in stat_rows)
+    total_strikeouts = sum(row.strikeouts or 0 for row in stat_rows)
+
     return TeamRecentTrendInfo(
         games=count,
         wins=wins,
@@ -225,6 +249,12 @@ async def _team_recent_trend(
         run_diff=runs_for - runs_against,
         avg_ops=round(sum(ops_rows) / len(ops_rows), 3) if ops_rows else None,
         ops_games=len(ops_rows),
+        avg_hits=round(total_hits / stat_count, 1) if stat_count else None,
+        avg_home_runs=round(total_home_runs / stat_count, 1) if stat_count else None,
+        avg_walks=round(total_walks / stat_count, 1) if stat_count else None,
+        avg_strikeouts=round(total_strikeouts / stat_count, 1) if stat_count else None,
+        walk_strikeout_ratio=round(total_walks / total_strikeouts, 2) if total_strikeouts else None,
+        stat_games=stat_count,
         recent_games=recent_games,
     )
 

@@ -336,6 +336,10 @@ function formatOps(value: number | null | undefined) {
   return value == null ? "-" : value.toFixed(3);
 }
 
+function formatOneDecimal(value: number | null | undefined) {
+  return value == null ? "-" : value.toFixed(1);
+}
+
 function trendRecord(trend: TeamRecentTrendInfo | null | undefined) {
   if (!trend) return "-";
   const draw = trend.draws ? ` ${trend.draws}무` : "";
@@ -866,11 +870,45 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
               awayBetter={(away_trend.avg_ops ?? 0) > (home_trend.avg_ops ?? 0)}
             />
             <TrendMetric
+              label="평균 안타"
+              away={formatOneDecimal(away_trend.avg_hits)}
+              home={formatOneDecimal(home_trend.avg_hits)}
+              awayBetter={(away_trend.avg_hits ?? 0) > (home_trend.avg_hits ?? 0)}
+            />
+            <TrendMetric
+              label="평균 홈런"
+              away={formatOneDecimal(away_trend.avg_home_runs)}
+              home={formatOneDecimal(home_trend.avg_home_runs)}
+              awayBetter={(away_trend.avg_home_runs ?? 0) > (home_trend.avg_home_runs ?? 0)}
+            />
+            <TrendMetric
+              label="볼넷/삼진"
+              away={away_trend.walk_strikeout_ratio != null ? away_trend.walk_strikeout_ratio.toFixed(2) : "-"}
+              home={home_trend.walk_strikeout_ratio != null ? home_trend.walk_strikeout_ratio.toFixed(2) : "-"}
+              awayBetter={(away_trend.walk_strikeout_ratio ?? 0) > (home_trend.walk_strikeout_ratio ?? 0)}
+            />
+            <TrendMetric
               label="득실 마진"
               away={away_trend.run_diff > 0 ? `+${away_trend.run_diff}` : away_trend.run_diff}
               home={home_trend.run_diff > 0 ? `+${home_trend.run_diff}` : home_trend.run_diff}
               awayBetter={away_trend.run_diff > home_trend.run_diff}
             />
+            <div className="grid grid-cols-1 gap-2 pt-2 sm:grid-cols-2">
+              <div className="rounded-xl bg-slate-900/25 p-3">
+                <p className="text-xs font-bold text-blue-300">{away_team.short_name ?? away_team.name} 세부 흐름</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  경기당 볼넷 {formatOneDecimal(away_trend.avg_walks)}개, 삼진 {formatOneDecimal(away_trend.avg_strikeouts)}개
+                  {away_trend.stat_games ? ` · 표본 ${away_trend.stat_games}경기` : ""}
+                </p>
+              </div>
+              <div className="rounded-xl bg-slate-900/25 p-3">
+                <p className="text-xs font-bold text-red-300">{home_team.short_name ?? home_team.name} 세부 흐름</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  경기당 볼넷 {formatOneDecimal(home_trend.avg_walks)}개, 삼진 {formatOneDecimal(home_trend.avg_strikeouts)}개
+                  {home_trend.stat_games ? ` · 표본 ${home_trend.stat_games}경기` : ""}
+                </p>
+              </div>
+            </div>
           </div>
         ) : gameLoading ? (
           <LoadingCard text="최근 공격 흐름을 불러오는 중입니다." />
