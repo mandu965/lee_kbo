@@ -461,6 +461,46 @@ function LineupTeamCard({
   );
 }
 
+function predictionSummary(game: GameResponse, prediction: PredictionInGame) {
+  const home = game.home_team.short_name ?? game.home_team.name;
+  const away = game.away_team.short_name ?? game.away_team.name;
+  const favorite = prediction.home_win_prob >= prediction.away_win_prob ? home : away;
+  const underdog = prediction.home_win_prob >= prediction.away_win_prob ? away : home;
+  const favoriteProb = Math.max(prediction.home_win_prob, prediction.away_win_prob) * 100;
+  const margin = Math.abs(prediction.home_win_prob - prediction.away_win_prob) * 100;
+  const available = prediction.factor_contributions
+    .filter((factor) => factor.available && Math.abs(factor.contribution_pp) >= 0.4)
+    .sort((a, b) => Math.abs(b.contribution_pp) - Math.abs(a.contribution_pp))
+    .slice(0, 2)
+    .map((factor) => factor.label);
+  const reason = available.length ? `${available.join(", ")} 지표가 크게 작용했습니다` : "현재 반영된 지표 차이가 크지 않습니다";
+  const closeness = margin < 3 ? "접전 구도" : margin < 7 ? "근소 우세" : "우세";
+
+  return `${favorite} ${favoriteProb.toFixed(1)}% ${closeness}입니다. ${reason}. ${underdog}도 뒤집을 여지가 있어 수치 차이를 과신하면 안 됩니다.`;
+}
+
+function factorStatusLabel(key: string) {
+  const labels: Record<string, string> = {
+    elo: "ELO 전력",
+    starter: "선발",
+    form: "최근 흐름",
+    home_adv: "홈 이점",
+    park: "구장",
+    weather: "날씨",
+    bullpen: "불펜",
+    lineup: "확정 타순",
+    h2h: "상대전적",
+  };
+  return labels[key] ?? key;
+}
+
+function factorStatusTone(factor: { available: boolean; contribution_pp: number }) {
+  if (!factor.available) return "border-slate-700/60 bg-slate-900/40 text-slate-500";
+  if (factor.contribution_pp > 0.3) return "border-red-900/40 bg-red-950/20 text-red-300";
+  if (factor.contribution_pp < -0.3) return "border-blue-900/40 bg-blue-950/20 text-blue-300";
+  return "border-emerald-900/30 bg-emerald-950/10 text-emerald-300";
+}
+
 export default function GameDetailClient({ summary }: { summary: GameResponse }) {
   const [primeGameData, setPrimeGameData] = useState(false);
 
@@ -1143,6 +1183,96 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
     <div className="space-y-4">
       {prediction ? (
         <>
+          <section className="rounded-2xl border border-indigo-900/50 bg-indigo-950/20 p-5">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-black text-indigo-200">예측 요약</h2>
+                <p className="mt-1 text-sm leading-relaxed text-slate-300">
+                  {predictionSummary(game, prediction)}
+                </p>
+              </div>
+              <div className="shrink-0 rounded-xl bg-slate-950/40 px-3 py-2 text-right">
+                <p className="text-[10px] font-bold text-slate-500">데이터 완성도</p>
+                <p className="text-lg font-black text-indigo-200">
+                  {prediction.data_completeness != null ? `${prediction.data_completeness.toFixed(0)}%` : "-"}
+                </p>
+              </div>
+            </div>
+
+            <WinProbBar
+              homeProb={prediction.home_win_prob}
+              awayProb={prediction.away_win_prob}
+              homeTeamName={home_team.short_name ?? home_team.name}
+              awayTeamName={away_team.short_name ?? away_team.name}
+            />
+
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {prediction.factor_contributions.map((factor) => (
+                <div
+                  key={factor.key}
+                  className={`rounded-xl border px-3 py-2.5 ${factorStatusTone(factor)}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black">{factorStatusLabel(factor.key)}</span>
+                    <span className="text-[10px] font-bold">
+                      {factor.available ? "반영됨" : "대기"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs opacity-80">
+                    {factor.available
+                      ? `${factor.contribution_pp > 0 ? "홈 +" : factor.contribution_pp < 0 ? "원정 +" : "영향 "}${Math.abs(factor.contribution_pp).toFixed(1)}%p`
+                      : "아직 승률에 반영되지 않았습니다"}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {prediction.missing_features.length > 0 && (
+              <div className="mt-4 rounded-xl border border-yellow-900/50 bg-yellow-950/20 px-3 py-3">
+                <p className="text-xs font-bold text-yellow-400">아직 대기 중인 데이터</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                  {prediction.missing_features.join(" · ")}
+                </p>
+              </div>
+            )}
+          </section>
+
+          {prediction.trend.length > 0 && (
+            <section className="rounded-2xl border border-slate-700 bg-slate-800 p-5">
+              <div className="mb-4">
+                <h2 className="text-sm font-black text-slate-200">승률 변화 타임라인</h2>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  선발, 타순, 날씨처럼 데이터가 추가될 때 홈 승률이 어떻게 움직였는지 보여줍니다.
+                </p>
+              </div>
+              <div className="space-y-2">
+                {prediction.trend.map((item, index) => (
+                  <div key={`${item.generated_at}-${index}`} className="flex items-center gap-3 rounded-xl bg-slate-900/30 px-3 py-2.5">
+                    <div className="w-20 shrink-0 text-[11px] text-slate-500">{formatRunTime(item.generated_at)}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-slate-300">
+                        {PREDICTION_TYPE_LABEL[item.prediction_type] ?? item.prediction_type}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        완성도 {item.data_completeness != null ? `${item.data_completeness.toFixed(0)}%` : "-"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-red-300">홈 {(item.home_win_prob * 100).toFixed(1)}%</p>
+                      <p className={`text-[11px] font-bold ${
+                        (item.change_pp ?? 0) > 0 ? "text-red-400" :
+                        (item.change_pp ?? 0) < 0 ? "text-blue-400" :
+                        "text-slate-600"
+                      }`}>
+                        {item.change_pp != null ? `${item.change_pp > 0 ? "+" : ""}${item.change_pp.toFixed(1)}%p` : "기준"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {(prediction.park || prediction.weather || prediction.bullpen_home || prediction.bullpen_away) && (
             <div className="rounded-2xl border border-slate-700 bg-slate-800 p-5 space-y-5">
               <h2 className="text-sm font-black text-slate-200">경기 환경</h2>
