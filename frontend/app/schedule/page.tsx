@@ -5,8 +5,6 @@ import Link from "next/link";
 import useSWR from "swr";
 import type { GameListResponse, GameResponse } from "@/lib/types";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8002/v1";
-
 async function fetcher<T>(url: string): Promise<T> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 12000);
@@ -60,7 +58,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function SchedulePage() {
   const [date, setDate] = useState(todayStr());
-  const apiUrl = `${BASE}/games?date=${date}&summary=true`;
+  const apiUrl = `/api/games?date=${date}`;
   const { data, isLoading, error, mutate } = useSWR<GameListResponse>(apiUrl, fetcher, {
     keepPreviousData: true,
     revalidateOnFocus: false,
