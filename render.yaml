@@ -33,6 +33,8 @@ services:
         value: 20
       - key: NEXT_PUBLIC_API_URL
         value: https://lee-kbo.onrender.com/v1
+      - key: INTERNAL_API_URL
+        value: https://lee-kbo.onrender.com/v1
       - key: NEXT_PUBLIC_SITE_URL
         value: https://lee-kbo-web.onrender.com
     autoDeploy: true

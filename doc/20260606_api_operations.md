@@ -45,6 +45,20 @@ Render 즉시 적용 가능한 안정값:
 INTERNAL_API_URL=https://lee-kbo.onrender.com/v1
 ```
 
+현재 Render 구성 권장값:
+
+```text
+backend: lee_kbo, plan free
+frontend: lee-kbo-web, plan free
+INTERNAL_API_URL=https://lee-kbo.onrender.com/v1
+```
+
+이유:
+
+- Render free web service는 private network 요청을 보낼 수는 있지만 받을 수는 없다.
+- 따라서 backend `lee_kbo`가 free web service인 동안 frontend가 backend private/internal 주소로 붙는 구성은 안정적이지 않다.
+- 현재는 public backend URL을 `INTERNAL_API_URL`에 넣어 frontend 서버 경유 구조를 유지하는 것이 안전하다.
+
 Render 내부망 최적화값:
 
 ```env
@@ -61,6 +75,7 @@ INTERNAL_API_URL=http://backend-internal-host:port/v1
 
 - 실제 내부 host와 port는 Render Dashboard의 backend 서비스 `Connect > Internal`에서 확인한 값을 그대로 사용해야 한다.
 - Render 공식 문서 기준으로 내부 주소는 같은 workspace/region 서비스 간 통신에 사용한다.
+- 내부망 주소는 backend가 private network traffic을 받을 수 있는 플랜/구성일 때만 적용한다.
 - 내부 주소가 확인되지 않았거나 연결이 실패하면 public URL인 `https://lee-kbo.onrender.com/v1`로 두는 것이 안전하다.
 
 ## 현재 적용된 안정화
