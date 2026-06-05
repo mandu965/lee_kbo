@@ -26,7 +26,7 @@ logger = logging.getLogger("pull_from_web")
 TABLE_UPSERT_CONFIG: dict[str, dict] = {
     "teams": {
         "conflict": "id",
-        "columns": "id, code, name, short_name, stadium, elo_rating, created_at, updated_at",
+        "columns": "id, code, name, short_name, stadium, elo_rating, home_elo, away_elo, created_at, updated_at",
     },
     "players": {
         "conflict": "id",

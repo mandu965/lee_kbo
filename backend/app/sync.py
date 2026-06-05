@@ -32,7 +32,7 @@ WEB_ONLY_TABLES = {"visitor_daily_stats", "visitor_daily_uniques"}
 TABLE_UPSERT_CONFIG: dict[str, dict] = {
     "teams": {
         "conflict": "code",
-        "columns": "code, name, short_name, stadium, elo_rating, created_at, updated_at",
+        "columns": "code, name, short_name, stadium, elo_rating, home_elo, away_elo, created_at, updated_at",
     },
     "players": {
         "conflict": "id",
