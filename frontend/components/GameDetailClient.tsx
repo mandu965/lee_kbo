@@ -593,6 +593,88 @@ function DataStatusCard({
   );
 }
 
+function PredictionTrustSummary({
+  freshness,
+  prediction,
+  isFinished,
+}: {
+  freshness: DataFreshnessItem[];
+  prediction: PredictionInGame | null;
+  isFinished: boolean;
+}) {
+  if (!prediction) return null;
+
+  const completeness = prediction.data_completeness ?? 0;
+  const availableFactors = prediction.factor_contributions.filter((factor) => factor.available).length;
+  const totalFactors = prediction.factor_contributions.length;
+  const waitingFeatures = prediction.missing_features.length;
+  const staleItems = freshness.filter((item) => item.is_stale).length;
+  const predictionType = prediction.prediction_type
+    ? (PREDICTION_TYPE_LABEL[prediction.prediction_type] ?? prediction.prediction_type)
+    : "기본 예측";
+  const generatedAt = prediction.generated_at ? formatRunTime(prediction.generated_at) : "-";
+
+  const level =
+    completeness >= 90 && waitingFeatures === 0 && staleItems === 0 ? "높음" :
+    completeness >= 70 && staleItems <= 1 ? "보통" :
+    "참고용";
+  const levelTone =
+    level === "높음" ? "border-emerald-900/50 bg-emerald-950/20 text-emerald-300" :
+    level === "보통" ? "border-yellow-900/50 bg-yellow-950/20 text-yellow-300" :
+    "border-slate-700 bg-slate-900/40 text-slate-300";
+
+  const cards = [
+    { label: "예측 생성", value: generatedAt, hint: predictionType },
+    {
+      label: "데이터 완성도",
+      value: prediction.data_completeness != null ? `${prediction.data_completeness.toFixed(0)}%` : "-",
+      hint: isFinished ? "경기 전 기준" : "현재 반영 기준",
+    },
+    {
+      label: "반영 지표",
+      value: totalFactors ? `${availableFactors}/${totalFactors}` : "-",
+      hint: "ELO, 선발, 흐름 등",
+    },
+    {
+      label: "대기 데이터",
+      value: waitingFeatures ? `${waitingFeatures}개` : "없음",
+      hint: staleItems ? `갱신 주의 ${staleItems}개` : "누락 지표 기준",
+    },
+  ];
+
+  return (
+    <section className="rounded-2xl border border-slate-700 bg-slate-800 p-5">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-black text-slate-200">예측 신뢰도</h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            이 승률이 어떤 데이터 상태에서 만들어졌는지 먼저 확인할 수 있게 정리했습니다.
+          </p>
+        </div>
+        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-black ${levelTone}`}>
+          {level}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        {cards.map((card) => (
+          <div key={card.label} className="rounded-xl bg-slate-900/35 px-3 py-3">
+            <p className="text-[10px] font-bold text-slate-500">{card.label}</p>
+            <p className="mt-1 text-sm font-black text-slate-100">{card.value}</p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-slate-600">{card.hint}</p>
+          </div>
+        ))}
+      </div>
+
+      {waitingFeatures > 0 && (
+        <p className="mt-3 rounded-xl border border-yellow-900/40 bg-yellow-950/20 px-3 py-2 text-xs leading-relaxed text-yellow-100/80">
+          아직 반영되지 않은 데이터: {prediction.missing_features.join(" · ")}
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function GameDetailClient({ summary }: { summary: GameResponse }) {
   const [primeGameData, setPrimeGameData] = useState(false);
 
@@ -700,6 +782,12 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
           )}
         </div>
       )}
+
+      <PredictionTrustSummary
+        freshness={game.data_freshness ?? []}
+        prediction={prediction}
+        isFinished={isFinished}
+      />
 
       <DataStatusCard freshness={game.data_freshness ?? []} prediction={prediction} />
 
