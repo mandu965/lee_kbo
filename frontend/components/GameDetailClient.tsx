@@ -6,6 +6,7 @@ import GameDetailTabs from "@/components/GameDetailTabs";
 import RecentFormBadges from "@/components/RecentFormBadges";
 import WinProbBar from "@/components/WinProbBar";
 import type {
+  DataFreshnessItem,
   GameResponse,
   PredictionInGame,
   StarterInfo,
@@ -501,6 +502,97 @@ function factorStatusTone(factor: { available: boolean; contribution_pp: number 
   return "border-emerald-900/30 bg-emerald-950/10 text-emerald-300";
 }
 
+function freshnessName(item: DataFreshnessItem) {
+  const labels: Record<string, string> = {
+    pitcher: "투수 기록",
+    batter: "타자 기록",
+    standings: "팀 순위",
+    lineup: "확정 타순",
+    weather: "날씨",
+    prediction: "예측",
+  };
+  return labels[item.key] ?? item.label;
+}
+
+function freshnessStatus(item: DataFreshnessItem) {
+  if (item.is_stale) return { label: "갱신 주의", tone: "text-orange-300 bg-orange-950/40 border-orange-900/40" };
+  if (item.note) return { label: item.note, tone: "text-slate-400 bg-slate-900/40 border-slate-700/60" };
+  if (!item.updated_at && item.key !== "weather") return { label: "대기", tone: "text-slate-400 bg-slate-900/40 border-slate-700/60" };
+  return { label: "반영", tone: "text-emerald-300 bg-emerald-950/20 border-emerald-900/30" };
+}
+
+function DataStatusCard({
+  freshness,
+  prediction,
+}: {
+  freshness: DataFreshnessItem[];
+  prediction: PredictionInGame | null;
+}) {
+  if (!freshness.length && !prediction) return null;
+
+  const ready = freshness.filter((item) => !item.is_stale && !item.note && (item.updated_at || item.key === "weather"));
+  const waiting = freshness.filter((item) => item.is_stale || item.note || (!item.updated_at && item.key !== "weather"));
+  const predictionFreshness = freshness.find((item) => item.key === "prediction");
+  const lastUpdated = prediction?.generated_at ?? predictionFreshness?.updated_at ?? null;
+
+  return (
+    <section className="rounded-2xl border border-slate-700 bg-slate-800 p-5">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-black text-slate-200">데이터 상태</h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            예측에 반영된 데이터와 아직 대기 중인 데이터를 구분해서 보여줍니다.
+          </p>
+        </div>
+        <div className="shrink-0 rounded-xl bg-slate-900/50 px-3 py-2 text-right">
+          <p className="text-[10px] font-bold text-slate-500">마지막 예측</p>
+          <p className="text-xs font-black text-slate-200">
+            {lastUpdated ? formatRunTime(lastUpdated) : "-"}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="rounded-xl bg-emerald-950/10 p-3">
+          <p className="font-black text-emerald-300">반영 완료</p>
+          <p className="mt-1 leading-relaxed text-slate-400">
+            {ready.length ? ready.map(freshnessName).join(" · ") : "-"}
+          </p>
+        </div>
+        <div className="rounded-xl bg-slate-900/30 p-3">
+          <p className="font-black text-slate-300">대기/주의</p>
+          <p className="mt-1 leading-relaxed text-slate-500">
+            {waiting.length ? waiting.map(freshnessName).join(" · ") : "없음"}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {freshness.map((item) => {
+          const status = freshnessStatus(item);
+          return (
+            <div key={item.key} className={`rounded-xl border px-3 py-2.5 ${status.tone}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black">{freshnessName(item)}</span>
+                <span className="text-[10px] font-bold">{status.label}</span>
+              </div>
+              <p className="mt-1 text-[11px] opacity-75">
+                {item.updated_at ? fmtUpdatedAt(item.updated_at) : item.key === "lineup" ? "발표 전" : "-"}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {freshness.some((item) => item.key === "lineup" && !item.updated_at) && (
+        <p className="mt-3 rounded-xl border border-yellow-900/40 bg-yellow-950/20 px-3 py-2 text-xs leading-relaxed text-yellow-200/80">
+          확정 타순은 원천 데이터가 공개되어야 반영됩니다. 발표 전에는 공격력 탭의 최근 타격 흐름과 상대 선발 공략 지표를 우선 참고하세요.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function GameDetailClient({ summary }: { summary: GameResponse }) {
   const [primeGameData, setPrimeGameData] = useState(false);
 
@@ -608,6 +700,8 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
           )}
         </div>
       )}
+
+      <DataStatusCard freshness={game.data_freshness ?? []} prediction={prediction} />
 
       {gameAnalysis.length > 0 && (
         <section className="rounded-2xl border border-indigo-900/50 bg-indigo-950/20 p-5">
