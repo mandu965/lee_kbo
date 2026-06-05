@@ -5,7 +5,13 @@ import useSWR from "swr";
 import GameDetailTabs from "@/components/GameDetailTabs";
 import RecentFormBadges from "@/components/RecentFormBadges";
 import WinProbBar from "@/components/WinProbBar";
-import type { GameResponse, PredictionInGame } from "@/lib/types";
+import type {
+  GameResponse,
+  PredictionInGame,
+  StarterInfo,
+  TeamLineupInfo,
+  TeamRecentTrendInfo,
+} from "@/lib/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8002/v1";
 
@@ -322,6 +328,131 @@ function LoadingCard({ text }: { text: string }) {
         <div className="h-16 rounded-xl bg-slate-700/60" />
         <p className="text-sm text-slate-500">{text}</p>
       </div>
+    </div>
+  );
+}
+
+function formatOps(value: number | null | undefined) {
+  return value == null ? "-" : value.toFixed(3);
+}
+
+function trendRecord(trend: TeamRecentTrendInfo | null | undefined) {
+  if (!trend) return "-";
+  const draw = trend.draws ? ` ${trend.draws}무` : "";
+  return `${trend.wins}승 ${trend.losses}패${draw}`;
+}
+
+function TrendMetric({
+  label,
+  away,
+  home,
+  awayBetter,
+}: {
+  label: string;
+  away: string | number;
+  home: string | number;
+  awayBetter?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-3 items-center rounded-xl bg-slate-900/30 px-3 py-3">
+      <p className={`text-right text-sm font-black ${awayBetter === true ? "text-blue-400" : "text-slate-200"}`}>
+        {away}
+      </p>
+      <p className="text-center text-xs font-bold text-slate-500">{label}</p>
+      <p className={`text-left text-sm font-black ${awayBetter === false ? "text-red-400" : "text-slate-200"}`}>
+        {home}
+      </p>
+    </div>
+  );
+}
+
+function starterAttackNote(starter: StarterInfo | null | undefined, opponentName: string) {
+  if (!starter) return `${opponentName} 상대 선발 정보가 아직 부족합니다.`;
+
+  const notes: string[] = [];
+  if (starter.recent_summary?.era != null) {
+    notes.push(`최근 ERA ${starter.recent_summary.era.toFixed(2)}`);
+  }
+  if (starter.recent_summary?.avg_innings != null) {
+    notes.push(`평균 ${fmtIP(starter.recent_summary.avg_innings)}`);
+  }
+  if (starter.whip != null) {
+    notes.push(`WHIP ${starter.whip.toFixed(2)}`);
+  }
+  if (starter.bb_per_9 != null && starter.bb_per_9 >= 4) {
+    notes.push(`BB/9 ${starter.bb_per_9.toFixed(1)}`);
+  }
+  if (starter.hr_per_9 != null && starter.hr_per_9 >= 1) {
+    notes.push(`HR/9 ${starter.hr_per_9.toFixed(1)}`);
+  }
+
+  return notes.length
+    ? `${starter.name} 공략 포인트: ${notes.join(" · ")}`
+    : `${starter.name} 상대로 출루와 장타 흐름을 함께 확인해야 합니다.`;
+}
+
+function LineupTeamCard({
+  teamName,
+  side,
+  lineup,
+}: {
+  teamName: string;
+  side: string;
+  lineup: TeamLineupInfo | null;
+}) {
+  const hasPlayers = !!lineup?.players?.length;
+
+  return (
+    <div className="rounded-xl border border-slate-700/50 bg-slate-900/25 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-black text-slate-100">{teamName}</h3>
+          <p className="text-xs text-slate-500">{side}</p>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+          hasPlayers ? "bg-emerald-900/40 text-emerald-400" : "bg-slate-700/60 text-slate-500"
+        }`}>
+          {hasPlayers ? "확정" : "대기"}
+        </span>
+      </div>
+
+      {lineup?.strength_available && (
+        <div className="mb-3 rounded-lg bg-slate-800/70 px-3 py-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-500">라인업 강도</span>
+            <span className={`font-black ${
+              lineup.strength_ratio != null && lineup.strength_ratio >= 1
+                ? "text-emerald-400"
+                : lineup.strength_ratio != null && lineup.strength_ratio < 0.95
+                  ? "text-orange-400"
+                  : "text-slate-200"
+            }`}>
+              {lineup.strength_ratio != null ? `${(lineup.strength_ratio * 100).toFixed(0)}%` : "-"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {hasPlayers ? (
+        <div className="space-y-2">
+          {lineup.players.map((player) => (
+            <div key={`${side}-${player.bat_order}-${player.name}`} className="flex items-center justify-between rounded-lg bg-slate-800/60 px-3 py-2">
+              <div className="flex items-center gap-3">
+                <span className="w-5 text-xs font-black text-indigo-300">{player.bat_order}</span>
+                <div>
+                  <p className="text-sm font-bold text-slate-100">{player.name}</p>
+                  <p className="text-[11px] text-slate-500">{player.position ?? "-"}</p>
+                </div>
+              </div>
+              <span className="text-xs font-semibold text-slate-400">OPS {formatOps(player.ops)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-lg bg-slate-800/50 px-3 py-3 text-sm leading-relaxed text-slate-500">
+          확정 타순 발표 전입니다. 현재 공격력 평가는 최근 팀 타격 흐름과 상대 선발 지표를 기준으로 봅니다.
+        </p>
+      )}
     </div>
   );
 }
@@ -687,6 +818,124 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
     </div>
   );
 
+  const offenseContent = (
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-slate-700 bg-slate-800 p-5">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-black text-slate-200">공격 흐름 비교</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              확정 타순이 없어도 최근 득점력과 OPS 흐름으로 양 팀 공격 컨디션을 먼저 비교합니다.
+            </p>
+          </div>
+          <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+            최근 7경기
+          </span>
+        </div>
+
+        <div className="mb-4 grid grid-cols-3 items-center">
+          <div className="text-center">
+            <p className="font-black text-blue-100">{away_team.short_name ?? away_team.name}</p>
+            <p className="text-xs text-slate-500">원정</p>
+          </div>
+          <p className="text-center text-xs font-bold text-slate-500">공격 지표</p>
+          <div className="text-center">
+            <p className="font-black text-red-100">{home_team.short_name ?? home_team.name}</p>
+            <p className="text-xs text-slate-500">홈</p>
+          </div>
+        </div>
+
+        {home_trend && away_trend ? (
+          <div className="space-y-2">
+            <TrendMetric
+              label="최근 성적"
+              away={trendRecord(away_trend)}
+              home={trendRecord(home_trend)}
+              awayBetter={away_trend.wins > home_trend.wins}
+            />
+            <TrendMetric
+              label="평균 득점"
+              away={away_trend.avg_runs_for.toFixed(1)}
+              home={home_trend.avg_runs_for.toFixed(1)}
+              awayBetter={away_trend.avg_runs_for > home_trend.avg_runs_for}
+            />
+            <TrendMetric
+              label="평균 OPS"
+              away={formatOps(away_trend.avg_ops)}
+              home={formatOps(home_trend.avg_ops)}
+              awayBetter={(away_trend.avg_ops ?? 0) > (home_trend.avg_ops ?? 0)}
+            />
+            <TrendMetric
+              label="득실 마진"
+              away={away_trend.run_diff > 0 ? `+${away_trend.run_diff}` : away_trend.run_diff}
+              home={home_trend.run_diff > 0 ? `+${home_trend.run_diff}` : home_trend.run_diff}
+              awayBetter={away_trend.run_diff > home_trend.run_diff}
+            />
+          </div>
+        ) : gameLoading ? (
+          <LoadingCard text="최근 공격 흐름을 불러오는 중입니다." />
+        ) : (
+          <p className="rounded-xl bg-slate-900/30 p-4 text-sm text-slate-500">
+            최근 공격 흐름 데이터가 아직 준비되지 않았습니다.
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-slate-700 bg-slate-800 p-5">
+        <div className="mb-4">
+          <h2 className="text-sm font-black text-slate-200">상대 선발 공략 포인트</h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            타순 발표 전에는 상대 선발의 최근 컨디션과 출루/장타 허용 리스크가 가장 실용적인 공격 지표입니다.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-blue-900/30 bg-blue-950/20 p-4">
+            <p className="text-xs font-bold text-blue-300">{away_team.short_name ?? away_team.name} 공격</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-300">
+              {starterAttackNote(starters?.home, away_team.short_name ?? away_team.name)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-red-900/30 bg-red-950/20 p-4">
+            <p className="text-xs font-bold text-red-300">{home_team.short_name ?? home_team.name} 공격</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-300">
+              {starterAttackNote(starters?.away, home_team.short_name ?? home_team.name)}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-700 bg-slate-800 p-5">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-black text-slate-200">확정 타순</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              네이버 스포츠에 확정 타순이 공개되면 1-9번과 라인업 강도를 자동으로 표시합니다.
+            </p>
+          </div>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+            home_lineup?.players?.length || away_lineup?.players?.length
+              ? "bg-emerald-900/40 text-emerald-400"
+              : "bg-slate-700 text-slate-500"
+          }`}>
+            {home_lineup?.players?.length || away_lineup?.players?.length ? "반영됨" : "발표 대기"}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <LineupTeamCard
+            teamName={away_team.short_name ?? away_team.name}
+            side="원정"
+            lineup={away_lineup}
+          />
+          <LineupTeamCard
+            teamName={home_team.short_name ?? home_team.name}
+            side="홈"
+            lineup={home_lineup}
+          />
+        </div>
+      </section>
+    </div>
+  );
+
   const starterMatchup = (() => {
     const away = starters?.away;
     const home = starters?.home;
@@ -1008,7 +1257,7 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
         game={game}
         prediction={prediction}
         previewContent={previewContent}
-        lineupContent={lineupContent}
+        lineupContent={offenseContent}
         pitchersContent={pitchersContent}
         analysisContent={analysisContent}
       />
