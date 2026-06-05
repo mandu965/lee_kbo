@@ -620,6 +620,54 @@ async def _build_game_summary_response(session: AsyncSession, game: Game) -> Gam
 
 # ── 엔드포인트 ────────────────────────────────────────────────
 
+async def _build_game_list_response(session: AsyncSession, game: Game) -> GameResponse:
+    """Schedule/list pages only need lightweight game rows."""
+    home_team: Team = await session.get(Team, game.home_team_id)
+    away_team: Team = await session.get(Team, game.away_team_id)
+    pred = (
+        await session.execute(
+            select(Prediction).where(Prediction.game_id == game.id)
+        )
+    ).scalar_one_or_none()
+
+    return GameResponse(
+        id=game.id,
+        game_date=game.game_date,
+        start_time=game.start_time,
+        stadium=game.stadium,
+        status=game.status,
+        home_team=TeamInGame(
+            id=home_team.id,
+            code=home_team.code,
+            name=home_team.name,
+            short_name=home_team.short_name,
+            elo_rating=home_team.elo_rating,
+            home_elo=home_team.home_elo,
+            away_elo=home_team.away_elo,
+            recent_form="",
+        ),
+        away_team=TeamInGame(
+            id=away_team.id,
+            code=away_team.code,
+            name=away_team.name,
+            short_name=away_team.short_name,
+            elo_rating=away_team.elo_rating,
+            home_elo=away_team.home_elo,
+            away_elo=away_team.away_elo,
+            recent_form="",
+        ),
+        home_score=game.home_score,
+        away_score=game.away_score,
+        prediction=_prediction_schema(pred),
+        starters=None,
+        home_trend=None,
+        away_trend=None,
+        home_lineup=None,
+        away_lineup=None,
+        data_freshness=[],
+    )
+
+
 @router.get("/today", response_model=GameListResponse)
 async def get_today_games(session: AsyncSession = Depends(get_db)):
     """오늘 경기 목록 + 예측."""
@@ -630,13 +678,14 @@ async def get_today_games(session: AsyncSession = Depends(get_db)):
 @router.get("", response_model=GameListResponse)
 async def get_games_by_date_query(
     date: date_cls = Query(default_factory=date_cls.today),
+    summary: bool = Query(False),
     session: AsyncSession = Depends(get_db),
 ):
     """날짜별 경기 목록 (?date=2026-05-29)."""
-    return await get_games_by_date(date, session)
+    return await get_games_by_date(date, session, summary=summary)
 
 
-async def get_games_by_date(target_date: date_cls, session: AsyncSession) -> GameListResponse:
+async def get_games_by_date(target_date: date_cls, session: AsyncSession, summary: bool = False) -> GameListResponse:
     stmt = select(Game).where(Game.game_date == target_date).order_by(Game.start_time)
     games = (await session.execute(stmt)).scalars().all()
 
@@ -650,7 +699,8 @@ async def get_games_by_date(target_date: date_cls, session: AsyncSession) -> Gam
         team_ids.add(g.away_team_id)
     await session.execute(select(Team).where(Team.id.in_(team_ids)))
 
-    responses = [await _build_game_response(session, g) for g in games]
+    builder = _build_game_list_response if summary else _build_game_response
+    responses = [await builder(session, g) for g in games]
     return GameListResponse(date=target_date, total=len(responses), games=responses)
 
 
