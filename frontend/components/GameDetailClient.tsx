@@ -14,7 +14,7 @@ import type {
   TeamRecentTrendInfo,
 } from "@/lib/types";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8002/v1";
+const BASE = "/api";
 
 async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(url);
