@@ -41,6 +41,134 @@ type Draft = {
   updated_at: string | null;
 };
 
+type SchedulerJob = {
+  job_id: string;
+  task_name: string;
+  label: string;
+  status: string;
+  last_started_at: string | null;
+  last_finished_at: string | null;
+  last_success_at: string | null;
+  last_row_count: number | null;
+  last_error: string | null;
+  next_run_at: string | null;
+};
+
+type SchedulerStatus = {
+  scheduler: {
+    running: boolean;
+    job_count: number;
+    active_count: number;
+    running_count: number;
+    failed_count: number;
+    timezone: string;
+  };
+  data_policy: {
+    source: string;
+    replica: string;
+    description: string;
+  };
+  jobs: SchedulerJob[];
+};
+
+function fmtAbsoluteTime(iso: string | null) {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleString("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function SchedulerStatusCard({ status }: { status?: SchedulerStatus }) {
+  if (!status) {
+    return (
+      <div className="rounded-2xl p-5" style={{ background: "#111827", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <p className="text-sm text-slate-500">스케줄러 상태를 불러오는 중입니다.</p>
+      </div>
+    );
+  }
+
+  const failedJobs = status.jobs.filter((job) => job.status === "failed");
+  const runningJobs = status.jobs.filter((job) => job.status === "running");
+  const nextJobs = status.jobs
+    .filter((job) => job.next_run_at)
+    .sort((a, b) => new Date(a.next_run_at ?? 0).getTime() - new Date(b.next_run_at ?? 0).getTime())
+    .slice(0, 4);
+  const recentJobs = status.jobs
+    .filter((job) => job.last_started_at)
+    .sort((a, b) => new Date(b.last_started_at ?? 0).getTime() - new Date(a.last_started_at ?? 0).getTime())
+    .slice(0, 5);
+
+  return (
+    <div className="rounded-2xl p-5 space-y-4" style={{ background: "#111827", border: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-black text-slate-200">스케줄러 상태</h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">{status.data_policy.description}</p>
+        </div>
+        <StatusBadge status={status.scheduler.running ? "running" : "failed"} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "등록 작업", value: status.scheduler.job_count, color: "text-slate-100" },
+          { label: "활성 작업", value: status.scheduler.active_count, color: "text-indigo-300" },
+          { label: "진행 중", value: runningJobs.length, color: "text-blue-300" },
+          { label: "실패", value: failedJobs.length, color: failedJobs.length ? "text-red-400" : "text-emerald-400" },
+        ].map((metric) => (
+          <div key={metric.label} className="rounded-xl p-3 text-center" style={{ background: "#0d1421" }}>
+            <div className={`text-2xl font-black ${metric.color}`}>{metric.value}</div>
+            <div className="mt-1 text-[10px] text-slate-600">{metric.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="rounded-xl p-3" style={{ background: "#0d1421" }}>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-black text-slate-300">다음 실행</h3>
+            <span className="text-[10px] text-slate-600">{status.scheduler.timezone}</span>
+          </div>
+          <div className="space-y-2">
+            {nextJobs.length ? nextJobs.map((job) => (
+              <div key={job.job_id} className="flex items-center justify-between gap-3 text-xs">
+                <span className="truncate font-bold text-slate-300">{job.label}</span>
+                <span className="shrink-0 text-slate-500">{fmtAbsoluteTime(job.next_run_at)}</span>
+              </div>
+            )) : <p className="text-xs text-slate-600">예약된 작업이 없습니다.</p>}
+          </div>
+        </div>
+
+        <div className="rounded-xl p-3" style={{ background: "#0d1421" }}>
+          <h3 className="mb-2 text-xs font-black text-slate-300">최근 실행</h3>
+          <div className="space-y-2">
+            {recentJobs.length ? recentJobs.map((job) => (
+              <div key={`${job.job_id}-${job.last_started_at}`} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 text-xs">
+                <span className="truncate font-bold text-slate-300">{job.label}</span>
+                <StatusBadge status={job.status} />
+                <span className="text-right text-slate-500">{fmtTime(job.last_started_at)}</span>
+              </div>
+            )) : <p className="text-xs text-slate-600">아직 기록된 실행 이력이 없습니다.</p>}
+          </div>
+        </div>
+      </div>
+
+      {failedJobs.length > 0 && (
+        <div className="rounded-xl border border-red-900/40 bg-red-950/20 p-3">
+          <p className="mb-2 text-xs font-black text-red-300">실패 작업</p>
+          {failedJobs.slice(0, 3).map((job) => (
+            <p key={job.job_id} className="text-[11px] leading-relaxed text-red-200/80">
+              [{job.label}] {job.last_error ?? "오류 메시지 없음"}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ContentDraftsPanel() {
   const { data: drafts, isLoading } = useSWR<Draft[]>(`${BASE}/admin/content-drafts`, fetcher, { refreshInterval: 60000 });
   const [copying, setCopying] = useState<string | null>(null);
@@ -175,6 +303,7 @@ function ContentDraftsPanel() {
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"ops" | "blog">("ops");
   const { data: status, mutate } = useSWR(`${BASE}/admin/collection-status`, fetcher, { refreshInterval: 30000 });
+  const { data: schedulerStatus } = useSWR<SchedulerStatus>(`${BASE}/admin/scheduler-status`, fetcher, { refreshInterval: 30000 });
   const { data: perf } = useSWR(`${BASE}/predictions/performance`, fetcher, { refreshInterval: 60000 });
   const { data: versions } = useSWR(`${BASE}/admin/model-versions`, fetcher, { refreshInterval: 60000 });
   const { data: recentRuns } = useSWR(`${BASE}/admin/collection-runs?limit=20`, fetcher, { refreshInterval: 30000 });
@@ -210,6 +339,7 @@ export default function AdminPage() {
       {/* 운영 탭 */}
       {activeTab === "ops" && <>
 
+      <SchedulerStatusCard status={schedulerStatus} />
 
       {/* 오늘 요약 */}
       {status?.today && (

@@ -18,11 +18,38 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import CollectionRun, Game, Prediction, VisitorDailyStat, VisitorDailyUnique
+from app.scheduler.main import scheduler
 from app.time_utils import today_kst
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 TRACKED_TASKS = ["crawl_schedule", "crawl_results", "crawl_statiz", "crawl_batters", "crawl_standings"]
+
+SCHEDULER_TASK_LABELS = {
+    "midnight_batch": "자정 통합 배치",
+    "crawl_statiz": "투수 기록",
+    "crawl_batters": "타자 기록",
+    "crawl_standings": "팀 순위",
+    "crawl_lineup": "선발/타순",
+    "crawl_lineup_1st": "선발/타순 1차",
+    "crawl_lineup_2nd": "선발/타순 2차",
+    "crawl_lineup_3rd": "선발/타순 3차",
+    "crawl_weather": "날씨",
+    "update_predictions": "예측 생성",
+    "generate_blog": "블로그 초안",
+    "crawl_results": "경기 결과",
+    "settle_results": "예측 정산",
+}
+
+JOB_TO_RUN_TASK = {
+    "crawl_lineup_1st": "crawl_lineup",
+    "crawl_lineup_2nd": "crawl_lineup",
+    "crawl_lineup_3rd": "crawl_lineup",
+}
+
+
+def _iso_or_none(value):
+    return value.isoformat() if value else None
 
 
 @router.get("/collection-status")
@@ -83,6 +110,78 @@ async def collection_status(session: AsyncSession = Depends(get_db)):
             "predicted": today_predicted or 0,
             "settled": today_settled or 0,
         },
+    }
+
+
+@router.get("/scheduler-status")
+async def scheduler_status(session: AsyncSession = Depends(get_db)):
+    """Scheduler jobs, last run status, and next scheduled fire time."""
+    jobs = sorted(scheduler.get_jobs(), key=lambda job: str(job.next_run_time or ""))
+    job_ids = [job.id for job in jobs]
+    run_task_names = sorted(set(JOB_TO_RUN_TASK.get(job_id, job_id) for job_id in job_ids))
+
+    latest_runs: dict[str, CollectionRun] = {}
+    latest_success: dict[str, CollectionRun] = {}
+
+    if run_task_names:
+        rows = (await session.execute(
+            select(CollectionRun)
+            .where(CollectionRun.task_name.in_(run_task_names))
+            .order_by(desc(CollectionRun.started_at), desc(CollectionRun.id))
+        )).scalars().all()
+        for row in rows:
+            latest_runs.setdefault(row.task_name, row)
+            if row.status == "success":
+                latest_success.setdefault(row.task_name, row)
+
+    items = []
+    active_count = 0
+    failed_count = 0
+    running_count = 0
+
+    for job in jobs:
+        task_name = JOB_TO_RUN_TASK.get(job.id, job.id)
+        last = latest_runs.get(task_name)
+        success = latest_success.get(task_name)
+        status = last.status if last else "not_recorded"
+        if job.next_run_time:
+            active_count += 1
+        if status == "failed":
+            failed_count += 1
+        if status == "running":
+            running_count += 1
+
+        items.append({
+            "job_id": job.id,
+            "task_name": task_name,
+            "label": SCHEDULER_TASK_LABELS.get(job.id)
+                or SCHEDULER_TASK_LABELS.get(task_name)
+                or job.name
+                or job.id,
+            "status": status,
+            "last_started_at": _iso_or_none(last.started_at) if last else None,
+            "last_finished_at": _iso_or_none(last.finished_at) if last else None,
+            "last_success_at": _iso_or_none(success.finished_at) if success else None,
+            "last_row_count": last.row_count if last else None,
+            "last_error": last.error_message if last else None,
+            "next_run_at": _iso_or_none(job.next_run_time),
+        })
+
+    return {
+        "scheduler": {
+            "running": scheduler.running,
+            "job_count": len(jobs),
+            "active_count": active_count,
+            "running_count": running_count,
+            "failed_count": failed_count,
+            "timezone": str(scheduler.timezone),
+        },
+        "data_policy": {
+            "source": "local_db",
+            "replica": "web_db",
+            "description": "로컬 DB가 운영 원본이고 웹 DB는 조회용 복제본입니다.",
+        },
+        "jobs": items,
     }
 
 
