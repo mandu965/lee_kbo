@@ -5,7 +5,7 @@ import "./globals.css";
 import NavBar from "./NavBar";
 import VisitorTracker from "@/components/VisitorTracker";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lee-kbo-web.onrender.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lee-kbo.onrender.com";
 const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_ID;
 
 export const metadata: Metadata = {

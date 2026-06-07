@@ -1,0 +1,40 @@
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    gettext-base \
+    libpq-dev \
+    nginx \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir -r ./backend/requirements.txt
+
+COPY frontend/package.json frontend/package-lock.json* ./frontend/
+RUN cd frontend && npm ci
+
+COPY frontend ./frontend
+ENV NEXT_PUBLIC_API_URL=/v1
+ENV INTERNAL_API_URL=http://127.0.0.1:8002/v1
+RUN cd frontend && npm run build && npm prune --omit=dev
+
+COPY backend ./backend
+COPY deploy/nginx.conf.template ./deploy/nginx.conf.template
+COPY deploy/start-render.sh ./deploy/start-render.sh
+RUN sed -i 's/\r$//' ./deploy/start-render.sh && chmod +x ./deploy/start-render.sh
+
+ENV PATH="/opt/venv/bin:${PATH}"
+ENV PORT=10000
+ENV ENV=production
+ENV REDIS_URL=redis://localhost:6379/1
+ENV DATABASE_URL=postgresql+asyncpg://placeholder:placeholder@localhost/placeholder
+
+EXPOSE 10000
+
+CMD ["./deploy/start-render.sh"]

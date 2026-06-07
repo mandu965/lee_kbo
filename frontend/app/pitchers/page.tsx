@@ -1,5 +1,6 @@
 import { getTodayPitchers } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 300; // 5분 — 오늘 선발 업데이트 반영
 
 export default async function PitchersPage() {

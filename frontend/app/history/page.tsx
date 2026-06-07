@@ -5,7 +5,10 @@ import useSWR from "swr";
 import Link from "next/link";
 import type { AccuracyResponse, MonthlyAccuracy, PredictionHistoryItem } from "@/lib/types";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001/v1";
+const BASE =
+  (typeof window === "undefined"
+    ? (process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL)
+    : process.env.NEXT_PUBLIC_API_URL) ?? "http://localhost:8002/v1";
 const fetcher = <T,>(url: string): Promise<T> => fetch(url).then((r) => r.json());
 
 const MONTH_NAMES = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];

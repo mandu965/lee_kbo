@@ -4,7 +4,8 @@ import GameCard from "@/components/GameCard";
 import AccuracyBadge from "@/components/AccuracyBadge";
 import AdSense from "@/components/AdSense";
 
-export const revalidate = 300; // 5분 — 선발/예측 업데이트 반영
+export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);

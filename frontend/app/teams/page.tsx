@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getTeams } from "@/lib/api";
 import RecentFormBadges from "@/components/RecentFormBadges";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 1800; // 30분 — 순위는 하루 몇 번만 갱신
 
 function StreakBadge({ streak }: { streak: string | null }) {

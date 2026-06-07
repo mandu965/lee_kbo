@@ -1,7 +1,12 @@
 import type { MetadataRoute } from "next";
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lee-kbo-web.onrender.com";
-const API_URL  = process.env.NEXT_PUBLIC_API_URL  ?? "http://localhost:8001/v1";
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://lee-kbo.onrender.com";
+const API_URL =
+  process.env.INTERNAL_API_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8002/v1";
+
+export const dynamic = "force-dynamic";
 
 async function safeFetch<T>(url: string, fallback: T): Promise<T> {
   try {

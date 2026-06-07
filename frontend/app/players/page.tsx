@@ -5,7 +5,10 @@ import useSWR from "swr";
 import Link from "next/link";
 import type { BatterRankingItem, PitcherRankingItem } from "@/lib/types";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001/v1";
+const BASE =
+  (typeof window === "undefined"
+    ? (process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL)
+    : process.env.NEXT_PUBLIC_API_URL) ?? "http://localhost:8002/v1";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const BATTER_SORTS = [

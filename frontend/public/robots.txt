@@ -4,4 +4,4 @@ Allow: /blog/
 Disallow: /v1/admin/
 Disallow: /admin/
 
-Sitemap: https://lee-kbo-web.onrender.com/sitemap.xml
+Sitemap: https://lee-kbo.onrender.com/sitemap.xml

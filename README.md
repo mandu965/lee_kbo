@@ -98,17 +98,17 @@ npm run dev          # http://localhost:3000
 
 ## Render 배포
 
-루트의 `render.yaml`은 백엔드 API와 Next.js 프론트엔드를 별도 Web Service로 배포한다.
+루트의 `render.yaml`은 백엔드 API와 Next.js 프론트엔드를 하나의 Docker Web Service로 묶어 배포한다.
 
 | 서비스 | 운영 주소 |
 |--------|----------|
-| 프론트엔드 | https://lee-kbo-web.onrender.com |
+| 프론트엔드 | https://lee-kbo.onrender.com |
 | API | https://lee-kbo.onrender.com/v1 |
 | API 상태 확인 | https://lee-kbo.onrender.com/health |
 
-`render.yaml`을 커밋하고 연결된 브랜치에 push한 뒤 Render Blueprint를 동기화한다. 기존에 백엔드 Web Service만 직접 생성했다면 Render Dashboard에서 `New > Blueprint`로 저장소 루트의 `render.yaml`을 연결하고 `lee-kbo-web` 서비스 생성을 확인한다.
+`render.yaml`을 커밋하고 연결된 브랜치에 push한 뒤 Render Blueprint를 동기화한다. `lee_kbo` 서비스 하나만 배포되는지 확인하고, 기존 `lee-kbo-web` 서비스는 통합 배포가 정상 동작한 뒤 중지하거나 제거한다.
 
-`lee-kbo.onrender.com`은 API 주소이므로 브라우저 루트에 접속하면 웹 페이지 대신 `{"detail":"Not Found"}`가 표시될 수 있다.
+`lee-kbo.onrender.com` 루트는 웹 화면으로 응답하고, `/v1/*` 경로는 같은 서비스 내부의 API로 프록시된다.
 
 DB 스키마 변경이 포함된 배포는 서버 시작 전에 `DATABASE_WEB_URL`을 설정한 환경에서 migration을 먼저 적용한다.
 
@@ -144,7 +144,7 @@ python -m scripts.backtest --start 2026-04-01 --end 2026-05-28 --csv results/bac
 
 ## 7. Google AdSense 설정 (배포 후)
 
-AdSense에서 사이트 연결용 게시자 ID를 발급받은 뒤 Render의 `lee-kbo-web` 서비스 환경변수와
+AdSense에서 사이트 연결용 게시자 ID를 발급받은 뒤 Render의 `lee_kbo` 서비스 환경변수와
 로컬 `frontend/.env.local`에 아래 항목을 추가한다.
 
 ```env

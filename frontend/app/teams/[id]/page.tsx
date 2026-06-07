@@ -7,7 +7,10 @@ import useSWR from "swr";
 import EloChart from "@/components/EloChart";
 import RecentFormBadges from "@/components/RecentFormBadges";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001/v1";
+const BASE =
+  (typeof window === "undefined"
+    ? (process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL)
+    : process.env.NEXT_PUBLIC_API_URL) ?? "http://localhost:8002/v1";
 const fetcher = (url: string) => fetch(url).then((r) => { if (!r.ok) throw new Error("err"); return r.json(); });
 
 type Tab = "overview" | "roster" | "games";
