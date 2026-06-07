@@ -11,37 +11,41 @@ const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_ID;
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "KBO Predictor — 데이터 기반 KBO 승부예측",
+    default: "KBO Predictor | 데이터 기반 KBO 경기 분석",
     template: "%s | KBO Predictor",
   },
   description:
-    "ELO·선발투수·최근흐름·날씨·불펜·확정 타순을 바탕으로 KBO 경기 결과를 분석합니다. 선수 기록, 팀 순위, 경기별 핵심 해설까지 제공하는 데이터 기반 야구 분석 플랫폼.",
-  keywords: ["KBO", "야구 예측", "승부예측", "KBO 분석", "야구 통계", "선발투수", "ELO", "팀 순위"],
+    "KBO 경기 일정, 팀 순위, 선수 기록, ELO 기반 승부 예측과 분석 글을 제공하는 비공식 데이터 분석 사이트입니다.",
+  keywords: ["KBO", "KBO 예측", "KBO 분석", "프로야구 기록", "야구 통계", "ELO", "승부 예측"],
   openGraph: {
     type: "website",
     locale: "ko_KR",
     url: SITE_URL,
     siteName: "KBO Predictor",
-    title: "KBO Predictor — 데이터 기반 KBO 승부예측",
-    description: "ELO·선발투수·최근흐름·불펜·확정 타순을 바탕으로 KBO 경기를 분석합니다.",
+    title: "KBO Predictor | 데이터 기반 KBO 경기 분석",
+    description:
+      "KBO 경기 일정, 팀 순위, 선수 기록, ELO 기반 승부 예측과 분석 글을 제공하는 비공식 데이터 분석 사이트입니다.",
   },
-  twitter: { card: "summary", title: "KBO Predictor", description: "데이터 기반 KBO 승부예측 플랫폼" },
+  twitter: {
+    card: "summary",
+    title: "KBO Predictor",
+    description: "데이터 기반 KBO 경기 분석과 승부 예측",
+  },
   robots: { index: true, follow: true },
   verification: { google: "_QhLLrBaUMZ6GcBG8MFpQd_qV1dHkKlK02jtqTfjOrw" },
 };
 
-
 const FOOTER_LINKS = [
-  { href: "/about",   label: "서비스 소개" },
-  { href: "/privacy", label: "개인정보" },
-  { href: "/terms",   label: "이용약관" },
+  { href: "/about", label: "서비스 소개" },
+  { href: "/contact", label: "문의" },
+  { href: "/privacy", label: "개인정보처리방침" },
+  { href: "/terms", label: "이용약관" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
       <body className="min-h-screen">
-        {/* Pretendard 폰트: body 내 link는 브라우저가 정상 처리 */}
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           rel="stylesheet"
@@ -58,22 +62,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NavBar />
         <VisitorTracker />
 
-        <main className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:py-8">
-          {children}
-        </main>
+        <main className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:py-8">{children}</main>
 
-        <footer className="mt-12 px-4 py-10 pb-24 text-center text-xs sm:mt-20 sm:pb-10"
-          style={{ borderTop: "1px solid rgba(255,255,255,0.05)", color: "#334155" }}>
-          <div className="flex justify-center gap-5 mb-3">
+        <footer
+          className="mt-12 px-4 py-10 pb-24 text-center text-xs sm:mt-20 sm:pb-10"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.05)", color: "#94a3b8" }}
+        >
+          <div className="mb-3 flex flex-wrap justify-center gap-5">
             {FOOTER_LINKS.map(({ href, label }) => (
-              <Link key={href} href={href}
-                className="transition-colors hover:text-slate-400">
+              <Link key={href} href={href} className="transition-colors hover:text-slate-200">
                 {label}
               </Link>
             ))}
           </div>
-          <p className="text-slate-600">KBO Predictor · 데이터 출처: KBO 공식 기록실 / Open-Meteo</p>
-          <p className="mt-1 text-slate-700">비공식 데이터 분석 서비스 · 예측 정보는 참고용입니다</p>
+          <p>KBO Predictor는 KBO 공식 서비스가 아닌 비공식 데이터 분석 사이트입니다.</p>
+          <p className="mt-1 text-slate-500">
+            데이터 출처: KBO 공식 기록실, 네이버 스포츠, Open-Meteo. 예측 정보는 참고용입니다.
+          </p>
         </footer>
       </body>
     </html>
