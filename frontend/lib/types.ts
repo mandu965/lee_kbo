@@ -66,6 +66,8 @@ export interface PitcherRankingItem {
   innings_pitched: number | null;
   hits: number | null;
   home_runs_allowed: number | null;
+  runs: number | null;
+  earned_runs: number | null;
   walks: number | null;
   hbp: number | null;
   strikeouts: number | null;

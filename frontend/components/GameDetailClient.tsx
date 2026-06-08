@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import useSWR from "swr";
+import GameCard from "@/components/GameCard";
 import GameDetailTabs from "@/components/GameDetailTabs";
 import RecentFormBadges from "@/components/RecentFormBadges";
 import WinProbBar from "@/components/WinProbBar";
 import type {
   DataFreshnessItem,
+  FactorContribution,
+  GameListResponse,
   GameResponse,
   PredictionInGame,
   StarterInfo,
@@ -675,6 +678,146 @@ function PredictionTrustSummary({
   );
 }
 
+function displayTeamName(team: GameResponse["home_team"]) {
+  return team.short_name ?? team.name;
+}
+
+function buildKeyFactors(prediction: PredictionInGame | null): FactorContribution[] {
+  return (prediction?.factor_contributions ?? [])
+    .filter((factor) => factor.available && Math.abs(factor.contribution_pp) >= 0.4)
+    .sort((a, b) => Math.abs(b.contribution_pp) - Math.abs(a.contribution_pp))
+    .slice(0, 3);
+}
+
+function keyFactorTeam(game: GameResponse, factor: FactorContribution) {
+  return factor.contribution_pp >= 0 ? displayTeamName(game.home_team) : displayTeamName(game.away_team);
+}
+
+function keyFactorTone(factor: FactorContribution) {
+  return factor.contribution_pp >= 0
+    ? "border-red-500/20 bg-red-500/10 text-red-100"
+    : "border-blue-500/20 bg-blue-500/10 text-blue-100";
+}
+
+function KeyFactorsSection({
+  game,
+  prediction,
+}: {
+  game: GameResponse;
+  prediction: PredictionInGame | null;
+}) {
+  const factors = buildKeyFactors(prediction);
+  if (!prediction || factors.length === 0) return null;
+
+  return (
+    <section className="rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-5">
+      <div className="mb-4">
+        <h2 className="text-sm font-black text-indigo-100">승부처 요약</h2>
+        <p className="mt-1 text-xs leading-relaxed text-slate-400">
+          현재 예측에 가장 크게 반영된 핵심 변수입니다. 수치가 클수록 해당 팀 쪽으로 승률이 이동했습니다.
+        </p>
+      </div>
+      <div className="grid gap-2">
+        {factors.map((factor, index) => {
+          const team = keyFactorTeam(game, factor);
+          return (
+            <div key={factor.key} className={`rounded-xl border px-3 py-3 ${keyFactorTone(factor)}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-black">
+                    {index + 1}. {factor.label}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                    {team}에 유리하게 반영된 지표입니다.
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-black">{team}</p>
+                  <p className="text-xs font-bold opacity-80">{Math.abs(factor.contribution_pp).toFixed(1)}%p</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function predictionSpread(game: GameResponse) {
+  if (!game.prediction) return null;
+  return Math.abs(game.prediction.home_win_prob - game.prediction.away_win_prob);
+}
+
+function otherGameReason(game: GameResponse) {
+  if (game.status === "in_progress") return "진행 중인 경기";
+  const spread = predictionSpread(game);
+  if (spread != null && spread <= 0.03) return `초접전 ${(spread * 100).toFixed(1)}%p`;
+  if (spread != null && spread <= 0.07) return `접전 ${(spread * 100).toFixed(1)}%p`;
+  if (game.starters?.home && game.starters?.away) return "선발 매치업 확인";
+  return "경기 분석 보기";
+}
+
+function pickOtherGames(currentGame: GameResponse, games: GameResponse[]) {
+  return games
+    .filter((game) => game.id !== currentGame.id)
+    .sort((a, b) => {
+      const liveA = a.status === "in_progress" ? 1 : 0;
+      const liveB = b.status === "in_progress" ? 1 : 0;
+      if (liveA !== liveB) return liveB - liveA;
+
+      const finalA = a.status === "final" ? 1 : 0;
+      const finalB = b.status === "final" ? 1 : 0;
+      if (finalA !== finalB) return finalA - finalB;
+
+      const spreadA = predictionSpread(a);
+      const spreadB = predictionSpread(b);
+      if (spreadA != null && spreadB != null) return spreadA - spreadB;
+      if (spreadA != null) return -1;
+      if (spreadB != null) return 1;
+
+      return (a.start_time ?? "").localeCompare(b.start_time ?? "");
+    })
+    .slice(0, 3);
+}
+
+function OtherGamesSection({
+  currentGame,
+  games,
+  isLoading,
+}: {
+  currentGame: GameResponse;
+  games: GameResponse[] | undefined;
+  isLoading: boolean;
+}) {
+  const otherGames = games ? pickOtherGames(currentGame, games) : [];
+
+  if (isLoading) {
+    return <LoadingCard text="오늘의 다른 경기를 불러오는 중입니다." />;
+  }
+
+  if (otherGames.length === 0) return null;
+
+  return (
+    <section className="space-y-3 rounded-2xl border border-slate-700 bg-slate-800 p-5">
+      <div>
+        <h2 className="text-sm font-black text-slate-200">오늘의 다른 경기</h2>
+        <p className="mt-1 text-xs text-slate-500">현재 경기와 함께 보면 좋은 경기입니다.</p>
+      </div>
+      <div className="space-y-2">
+        {otherGames.map((otherGame) => (
+          <GameCard
+            key={otherGame.id}
+            game={otherGame}
+            variant="compact"
+            highlightReason={otherGameReason(otherGame)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function GameDetailClient({ summary }: { summary: GameResponse }) {
   const [primeGameData, setPrimeGameData] = useState(false);
 
@@ -691,6 +834,10 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
   );
   const { data: fullPrediction, isLoading: predictionLoading } = useSWR<PredictionInGame>(
     `${BASE}/games/${summary.id}/prediction`,
+    fetcher,
+  );
+  const { data: todayGames, isLoading: todayGamesLoading } = useSWR<GameListResponse>(
+    shouldLoadGame ? `${BASE}/games?date=${summary.game_date}` : null,
     fetcher,
   );
 
@@ -1365,6 +1512,8 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
     <div className="space-y-4">
       {prediction ? (
         <>
+          <KeyFactorsSection game={game} prediction={prediction} />
+
           <section className="rounded-2xl border border-indigo-900/50 bg-indigo-950/20 p-5">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
@@ -1610,6 +1759,11 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
         lineupContent={offenseContent}
         pitchersContent={pitchersContent}
         analysisContent={analysisContent}
+      />
+      <OtherGamesSection
+        currentGame={game}
+        games={todayGames?.games}
+        isLoading={todayGamesLoading}
       />
     </div>
   );

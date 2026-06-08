@@ -73,6 +73,7 @@ class BacktestReport:
 
     def add(self, pred: GamePrediction, elo_correct: bool):
         self.total += 1
+        self.predictions.append(pred)
         if pred.actual_winner == "draw":
             self.draws += 1
             return
@@ -189,19 +190,34 @@ class BacktestEngine:
 
     async def _starter_stats(
         self, session: AsyncSession, player_id: int | None, season: int
-    ) -> tuple[float | None, float | None]:
+    ) -> tuple[float | None, float | None, float | None, float | None, float | None, float | None]:
         if player_id is None:
-            return None, None
+            return None, None, None, None, None, None
         from sqlalchemy import select, desc
         stat = (await session.execute(
             select(PitcherStat)
             .where(PitcherStat.player_id == player_id,
                    PitcherStat.season == season,
+                   PitcherStat.game_id.is_(None),
                    PitcherStat.is_starter == True)
             .order_by(PitcherStat.id.desc())
             .limit(1)
         )).scalar_one_or_none()
-        return (stat.era, stat.whip) if stat else (None, None)
+        if not stat:
+            return None, None, None, None, None, None
+
+        innings = stat.innings_pitched or 0.0
+        walks = stat.walks or 0
+        strikeouts = stat.strikeouts or 0
+        home_runs = stat.home_runs_allowed or 0
+        games = stat.games or 0
+
+        avg_innings = round(innings / games, 3) if games > 0 and innings > 0 else None
+        k_bb_ratio = round(strikeouts / walks, 3) if walks > 0 else (float(strikeouts) if strikeouts > 0 else None)
+        bb_per_9 = round((walks / innings) * 9, 3) if innings > 0 else None
+        hr_per_9 = round((home_runs / innings) * 9, 3) if innings > 0 else None
+
+        return stat.era, stat.whip, avg_innings, k_bb_ratio, bb_per_9, hr_per_9
 
     # ── 단일 경기 예측 ────────────────────────────────────────
 
@@ -218,10 +234,10 @@ class BacktestEngine:
         elo_a = self._get_elo(away_team)
         elo_win = expected_win_prob(elo_h + 40, elo_a)  # 홈 이점 +40 ELO
 
-        era_h, whip_h = await self._starter_stats(session, game.home_starter_id, season)
-        era_a, whip_a = await self._starter_stats(session, game.away_starter_id, season)
-        ps_h = pitcher_score(era_h, whip_h)
-        ps_a = pitcher_score(era_a, whip_a)
+        era_h, whip_h, avg_ip_h, kbb_h, bb9_h, hr9_h = await self._starter_stats(session, game.home_starter_id, season)
+        era_a, whip_a, avg_ip_a, kbb_a, bb9_a, hr9_a = await self._starter_stats(session, game.away_starter_id, season)
+        ps_h = pitcher_score(era_h, whip_h, 0.5, avg_ip_h, kbb_h, bb9_h, hr9_h)
+        ps_a = pitcher_score(era_a, whip_a, 0.5, avg_ip_a, kbb_a, bb9_a, hr9_a)
         adj_p = pitcher_adjustment(ps_h, ps_a)
 
         res_h = await self._recent_results(session, home_team.id, game.game_date)

@@ -34,6 +34,7 @@ async def get_batter_rankings(
     season: int = Query(default=None),
     team: Optional[str] = Query(default=None),
     sort: str = Query(default="ops"),
+    order: Optional[str] = Query(default=None),
     limit: int = Query(default=30, le=100),
     session: AsyncSession = Depends(get_db),
 ):
@@ -55,7 +56,12 @@ async def get_batter_rankings(
     else:
         # 전체 순위: 규정 타석 이상만 (PA ≥ 50)
         stmt = stmt.where(BatterStat.plate_app >= 50)
-    stmt = stmt.order_by(desc(sort_col).nulls_last()).limit(limit)
+    effective_order = order if order in ("asc", "desc") else "desc"
+    if effective_order == "asc":
+        stmt = stmt.order_by(asc(sort_col).nulls_last())
+    else:
+        stmt = stmt.order_by(desc(sort_col).nulls_last())
+    stmt = stmt.limit(limit)
 
     rows = (await session.execute(stmt)).all()
     result = []
@@ -95,6 +101,12 @@ PITCHER_SORT_MAP = {
     "holds": (PitcherStat.holds, "desc"),
     "strikeouts": (PitcherStat.strikeouts, "desc"),
     "ip": (PitcherStat.innings_pitched, "desc"),
+    "hits": (PitcherStat.hits, "asc"),
+    "hr": (PitcherStat.home_runs_allowed, "asc"),
+    "runs": (PitcherStat.runs, "asc"),
+    "earned_runs": (PitcherStat.earned_runs, "asc"),
+    "walks": (PitcherStat.walks, "asc"),
+    "hbp": (PitcherStat.hbp, "asc"),
 }
 
 
@@ -103,12 +115,14 @@ async def get_pitcher_rankings(
     season: int = Query(default=None),
     team: Optional[str] = Query(default=None),
     sort: str = Query(default="era"),
+    order: Optional[str] = Query(default=None),
     limit: int = Query(default=30, le=100),
     session: AsyncSession = Depends(get_db),
 ):
     """투수 시즌 기록 순위."""
     season = season or today_kst().year
-    col, order = PITCHER_SORT_MAP.get(sort, (PitcherStat.era, "asc"))
+    col, default_order = PITCHER_SORT_MAP.get(sort, (PitcherStat.era, "asc"))
+    effective_order = order if order in ("asc", "desc") else default_order
 
     stmt = (
         select(PitcherStat, Player, Team)
@@ -127,7 +141,7 @@ async def get_pitcher_rankings(
         min_ip = 30.0 if sort in ("era", "whip", "ip") else 10.0
         stmt = stmt.where(PitcherStat.innings_pitched >= min_ip)
 
-    if order == "asc":
+    if effective_order == "asc":
         stmt = stmt.order_by(asc(col).nulls_last())
     else:
         stmt = stmt.order_by(desc(col).nulls_last())
@@ -151,6 +165,8 @@ async def get_pitcher_rankings(
             "innings_pitched": stat.innings_pitched,
             "hits": stat.hits,
             "home_runs_allowed": stat.home_runs_allowed,
+            "runs": stat.runs,
+            "earned_runs": stat.earned_runs,
             "walks": stat.walks,
             "hbp": stat.hbp,
             "strikeouts": stat.strikeouts,

@@ -62,6 +62,8 @@ class PredictionResult:
     pitcher_score_away: float
     recent_form_home: float
     recent_form_away: float
+    starter_metrics_home: dict = field(default_factory=dict)
+    starter_metrics_away: dict = field(default_factory=dict)
     # 고도화 지표
     park_info: ParkInfo | None = None
     weather_effect: WeatherEffect | None = None
@@ -79,7 +81,27 @@ class PredictionResult:
     confidence_level: str = "보통"
     # 각 지표 방향 일치 여부 (home 우세 기준 True/False/None)
     indicator_votes: dict = field(default_factory=dict)
-    model_version: str = "v2.3"
+    model_version: str = "v2.4-starter-metrics"
+
+
+@dataclass
+class StarterMetricBundle:
+    era: float | None = None
+    whip: float | None = None
+    avg_innings: float | None = None
+    k_bb_ratio: float | None = None
+    bb_per_9: float | None = None
+    hr_per_9: float | None = None
+
+    def as_dict(self) -> dict:
+        return {
+            "era": self.era,
+            "whip": self.whip,
+            "avg_innings": self.avg_innings,
+            "k_bb_ratio": self.k_bb_ratio,
+            "bb_per_9": self.bb_per_9,
+            "hr_per_9": self.hr_per_9,
+        }
 
 
 # ── DB 헬퍼 ──────────────────────────────────────────────────
@@ -130,6 +152,44 @@ async def _get_starter_era_whip(
     if stat is None:
         return None, None
     return stat.era, stat.whip
+
+
+async def _get_starter_metric_bundle(
+    session: AsyncSession, player_id: Optional[int], season: int
+) -> StarterMetricBundle:
+    if player_id is None:
+        return StarterMetricBundle()
+
+    stat = (
+        await session.execute(
+            select(PitcherStat)
+            .where(
+                PitcherStat.player_id == player_id,
+                PitcherStat.season == season,
+                PitcherStat.game_id.is_(None),
+                PitcherStat.is_starter == True,
+            )
+            .order_by(desc(PitcherStat.id))
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if stat is None:
+        return StarterMetricBundle()
+
+    innings = stat.innings_pitched or 0.0
+    walks = stat.walks or 0
+    strikeouts = stat.strikeouts or 0
+    home_runs = stat.home_runs_allowed or 0
+    games = stat.games or 0
+
+    return StarterMetricBundle(
+        era=stat.era,
+        whip=stat.whip,
+        avg_innings=round(innings / games, 3) if games > 0 and innings > 0 else None,
+        k_bb_ratio=round(strikeouts / walks, 3) if walks > 0 else (float(strikeouts) if strikeouts > 0 else None),
+        bb_per_9=round((walks / innings) * 9, 3) if innings > 0 else None,
+        hr_per_9=round((home_runs / innings) * 9, 3) if innings > 0 else None,
+    )
 
 
 async def _has_bullpen_game_logs(
@@ -335,12 +395,30 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
     elo_diff = round(home_elo_val - away_elo_val, 2)
 
     # ── 2. 선발 투수 ──────────────────────────────────────────
-    era_h, whip_h = await _get_starter_era_whip(session, game.home_starter_id, season)
-    era_a, whip_a = await _get_starter_era_whip(session, game.away_starter_id, season)
+    starter_metrics_h = await _get_starter_metric_bundle(session, game.home_starter_id, season)
+    starter_metrics_a = await _get_starter_metric_bundle(session, game.away_starter_id, season)
+    era_h, whip_h = starter_metrics_h.era, starter_metrics_h.whip
+    era_a, whip_a = starter_metrics_a.era, starter_metrics_a.whip
     recent_avg_h = await _get_starter_recent_avg(session, game.home_starter_id, season, game.game_date)
     recent_avg_a = await _get_starter_recent_avg(session, game.away_starter_id, season, game.game_date)
-    ps_home = pitcher_score(era_h, whip_h, recent_avg_h)
-    ps_away = pitcher_score(era_a, whip_a, recent_avg_a)
+    ps_home = pitcher_score(
+        era_h,
+        whip_h,
+        recent_avg_h,
+        starter_metrics_h.avg_innings,
+        starter_metrics_h.k_bb_ratio,
+        starter_metrics_h.bb_per_9,
+        starter_metrics_h.hr_per_9,
+    )
+    ps_away = pitcher_score(
+        era_a,
+        whip_a,
+        recent_avg_a,
+        starter_metrics_a.avg_innings,
+        starter_metrics_a.k_bb_ratio,
+        starter_metrics_a.bb_per_9,
+        starter_metrics_a.hr_per_9,
+    )
     adj_pitcher = pitcher_adjustment(ps_home, ps_away)
 
     # ── 3. 최근 흐름 ──────────────────────────────────────────
@@ -504,6 +582,8 @@ async def predict_game(session: AsyncSession, game_id: int) -> Optional[Predicti
         pitcher_score_away=round(ps_away, 4),
         recent_form_home=form_home,
         recent_form_away=form_away,
+        starter_metrics_home=starter_metrics_h.as_dict(),
+        starter_metrics_away=starter_metrics_a.as_dict(),
         park_info=park,
         weather_effect=weather,
         bullpen_home=bp_home,
@@ -555,6 +635,10 @@ async def save_prediction(
         "elo_diff": result.elo_diff,
         "pitcher_score_home": result.pitcher_score_home,
         "pitcher_score_away": result.pitcher_score_away,
+        "starter_metrics": {
+            "home": result.starter_metrics_home,
+            "away": result.starter_metrics_away,
+        },
         "recent_form_home": result.recent_form_home,
         "recent_form_away": result.recent_form_away,
         "park": {"stadium": result.park_info.stadium, "factor": result.park_info.factor}
