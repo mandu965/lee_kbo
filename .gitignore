@@ -27,6 +27,7 @@ out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.tsbuildinfo
 
 # ── Docker ───────────────────────────────────────────────────
 # docker-compose.override.yml은 로컬 전용이면 제외

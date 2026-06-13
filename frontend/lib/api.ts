@@ -43,7 +43,7 @@ async function get<T>(path: string, revalidate?: number): Promise<T> {
 
 // ── 경기 ────────────────────────────────────────────────────────
 export const getTodayGames = () =>
-  get<GameListResponse>("/games/today", 3600);          // ISR 1시간
+  get<GameListResponse>("/games/today", 60);            // 오늘 예측 변경 빠르게 반영
 
 export const getGamesByDate = (date: string) =>
   get<GameListResponse>(`/games?date=${date}`, 3600);

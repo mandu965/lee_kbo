@@ -4,13 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_LINKS = [
-  { href: "/",         label: "경기",  icon: "⚾" },
-  { href: "/teams",    label: "순위",  icon: "🏆" },
-  { href: "/players",  label: "선수",  icon: "📊" },
-  { href: "/schedule", label: "일정",  icon: "📅" },
-  { href: "/history",  label: "예측",  icon: "🎯" },
-  { href: "/blog",     label: "글",    icon: "✍️" },
-  { href: "/glossary", label: "용어",  icon: "📖" },
+  { href: "/", label: "경기", icon: "경" },
+  { href: "/teams", label: "순위", icon: "순" },
+  { href: "/players", label: "선수", icon: "선" },
+  { href: "/schedule", label: "일정", icon: "일" },
+  { href: "/history", label: "예측", icon: "예" },
+  { href: "/blog", label: "분석글", icon: "글" },
+  { href: "/glossary", label: "용어", icon: "용" },
 ];
 
 export default function NavBar() {
@@ -18,7 +18,6 @@ export default function NavBar() {
 
   return (
     <>
-      {/* PC 상단 헤더 */}
       <header
         className="sticky top-0 z-50 hidden sm:block"
         style={{
@@ -28,24 +27,22 @@ export default function NavBar() {
           borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}
       >
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          {/* 로고 */}
-          <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+          <Link href="/" className="group flex shrink-0 items-center gap-2.5">
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-sm select-none"
+              className="flex h-7 w-7 select-none items-center justify-center rounded-lg text-xs font-black"
               style={{
                 background: "linear-gradient(135deg,#6366f1 0%,#4f46e5 100%)",
                 boxShadow: "0 0 14px rgba(99,102,241,0.45)",
               }}
             >
-              ⚾
+              K
             </div>
-            <span className="font-black text-[15px] tracking-tight text-white group-hover:text-indigo-200 transition-colors">
+            <span className="text-[15px] font-black tracking-tight text-white transition-colors group-hover:text-indigo-200">
               KBO <span className="text-indigo-400">Predictor</span>
             </span>
           </Link>
 
-          {/* PC 네비게이션 */}
           <nav className="flex items-center gap-0.5">
             {NAV_LINKS.map(({ href, label }) => {
               const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -53,18 +50,12 @@ export default function NavBar() {
                 <Link
                   key={href}
                   href={href}
-                  className="shrink-0 px-3.5 py-1.5 rounded-lg text-sm transition-all duration-150"
+                  className="shrink-0 rounded-lg px-3.5 py-1.5 text-sm transition-all duration-150"
                   style={
                     isActive
                       ? { background: "rgba(99,102,241,0.14)", color: "#a5b4fc", fontWeight: 700 }
                       : { color: "#64748b", fontWeight: 500 }
                   }
-                  onMouseEnter={(e) => {
-                    if (!isActive) (e.currentTarget as HTMLElement).style.color = "#cbd5e1";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) (e.currentTarget as HTMLElement).style.color = "#64748b";
-                  }}
                 >
                   {label}
                 </Link>
@@ -74,7 +65,6 @@ export default function NavBar() {
         </div>
       </header>
 
-      {/* 모바일 상단 미니 헤더 */}
       <header
         className="sticky top-0 z-50 sm:hidden"
         style={{
@@ -83,20 +73,21 @@ export default function NavBar() {
           borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}
       >
-        <div className="px-4 h-12 flex items-center justify-between">
+        <div className="flex h-12 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
-              style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)" }}>
-              ⚾
+            <div
+              className="flex h-6 w-6 items-center justify-center rounded-lg text-xs font-black"
+              style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)" }}
+            >
+              K
             </div>
-            <span className="font-black text-sm text-white">
+            <span className="text-sm font-black text-white">
               KBO <span className="text-indigo-400">Predictor</span>
             </span>
           </Link>
         </div>
       </header>
 
-      {/* 모바일 하단 탭바 */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-50 sm:hidden"
         style={{
@@ -113,20 +104,17 @@ export default function NavBar() {
               <Link
                 key={href}
                 href={href}
-                className="flex-1 flex flex-col items-center py-2 gap-0.5 transition-colors"
-                style={{ color: isActive ? "#a5b4fc" : "#475569" }}
+                className="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors"
+                style={{ color: isActive ? "#a5b4fc" : "#64748b" }}
               >
-                <span className="text-base">{icon}</span>
+                <span className="text-[11px] font-black">{icon}</span>
                 <span className="text-[10px] font-bold">{label}</span>
-                {isActive && (
-                  <span className="w-1 h-1 rounded-full" style={{ background: "#6366f1" }} />
-                )}
+                {isActive && <span className="h-1 w-1 rounded-full bg-indigo-500" />}
               </Link>
             );
           })}
         </div>
       </nav>
-
     </>
   );
 }

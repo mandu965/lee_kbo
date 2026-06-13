@@ -1,80 +1,76 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "이용약관 | KBO Predictor",
-  description: "KBO Predictor 이용약관",
+  title: "이용약관",
+  description: "KBO Predictor 이용 조건, 면책 사항, 광고와 저작권 안내",
 };
 
 export default function TermsPage() {
   return (
-    <div className="max-w-3xl mx-auto">
-      <h1 className="text-2xl font-black text-white mb-2">이용약관</h1>
-      <p className="text-slate-400 text-sm mb-8">시행일: 2026년 5월 29일</p>
+    <div className="mx-auto max-w-3xl">
+      <h1 className="mb-2 text-2xl font-black text-white">이용약관</h1>
+      <p className="mb-8 text-sm text-slate-400">시행일: 2026년 6월 7일</p>
 
       <div className="space-y-8">
-        <Section title="제1조 (목적)">
-          본 약관은 KBO Predictor(이하 &quot;서비스&quot;)가 제공하는 KBO 야구 데이터 분석 및
-          승부예측 서비스의 이용 조건과 절차, 이용자와 운영자 간의 권리·의무를
-          규정함을 목적으로 합니다.
+        <Section title="1. 목적">
+          <p>
+            이 약관은 KBO Predictor가 제공하는 KBO 경기 데이터, 기록 분석, 예측 콘텐츠 이용 조건과 운영자와
+            이용자 사이의 권리 및 책임을 안내하기 위한 문서입니다.
+          </p>
         </Section>
 
-        <Section title="제2조 (서비스 내용)">
-          <p>서비스는 다음을 제공합니다.</p>
-          <ul className="list-disc pl-5 mt-2 space-y-1">
-            <li>KBO 정규시즌 경기 일정 및 결과 정보</li>
-            <li>통계 기반 경기 결과 예측 및 분석</li>
-            <li>팀·선발 투수 성적 데이터 시각화</li>
-            <li>예측 적중률 히스토리</li>
+        <Section title="2. 서비스 내용">
+          <ul>
+            <li>KBO 경기 일정, 결과, 팀 순위 정보</li>
+            <li>선수 기록과 주요 통계 지표 정리</li>
+            <li>ELO와 기록 기반 경기 예측 및 분석</li>
+            <li>경기 프리뷰, 리포트, 야구 통계 용어 설명</li>
           </ul>
         </Section>
 
-        <Section title="제3조 (면책사항)">
-          <ul className="list-disc pl-5 space-y-1">
-            <li>
-              서비스의 예측 정보는 통계적 분석 결과이며, 실제 경기 결과와 다를 수 있습니다.
-              예측 정보를 근거로 한 이용자의 투자·도박·배팅 행위에 대한 책임은 이용자 본인에게 있습니다.
-            </li>
-            <li>
-              서비스는 외부 데이터 소스(KBO 공식 기록실, Open-Meteo 등)의 정확성을 보증하지 않으며,
-              데이터 오류로 인한 손해에 책임을 지지 않습니다.
-            </li>
-            <li>
-              서비스는 시스템 점검, 천재지변 등 불가피한 사유로 예고 없이 중단될 수 있습니다.
-            </li>
+        <Section title="3. 이용상 주의사항">
+          <ul>
+            <li>예측과 분석은 참고용 콘텐츠이며 실제 경기 결과를 보장하지 않습니다.</li>
+            <li>데이터 수집 시점, 외부 제공처 오류, 경기 취소와 변경에 따라 정보가 달라질 수 있습니다.</li>
+            <li>이 사이트의 콘텐츠를 사행성·도박성 목적으로 이용하는 것을 권장하지 않습니다.</li>
+            <li>서비스는 운영 상황, 시스템 점검, 외부 API 장애로 일시 중단될 수 있습니다.</li>
           </ul>
         </Section>
 
-        <Section title="제4조 (지식재산권)">
+        <Section title="4. 지식재산권">
           <p>
-            서비스 내 예측 알고리즘, 디자인, 소스코드 등은 운영자의 지식재산입니다.
-            KBO 경기 기록 및 선수 성적은 KBO 및 각 데이터 제공처에 귀속됩니다.
+            사이트의 화면 구성, 자체 분석 문장, 예측 모델 설명, 소스 코드는 운영자에게 권리가 있습니다. KBO
+            경기 기록과 선수 기록은 각 데이터 제공처의 권리를 존중합니다.
           </p>
-          <p className="mt-2">
-            이용자는 서비스 콘텐츠를 상업적 목적으로 무단 복제·배포할 수 없습니다.
+          <p>
+            이용자는 서비스를 개인적인 참고 목적으로 이용할 수 있으며, 콘텐츠를 무단 복제하거나 상업적으로
+            재배포해서는 안 됩니다.
           </p>
         </Section>
 
-        <Section title="제5조 (광고)">
+        <Section title="5. 광고">
           <p>
-            서비스는 Google AdSense를 통해 광고를 게재합니다.
-            광고 수익은 서비스 운영 및 데이터 비용에 사용됩니다.
-            이용자는 광고 차단 소프트웨어를 사용할 수 있으나,
-            서비스 지속 운영을 위해 광고 허용을 권장합니다.
+            이 사이트는 Google AdSense 등 광고 서비스를 사용할 수 있습니다. 광고 수익은 서버 운영과 데이터
+            수집 비용, 콘텐츠 개선에 사용됩니다. 광고와 관련된 개인정보 처리는 개인정보처리방침을 따릅니다.
           </p>
         </Section>
 
-        <Section title="제6조 (약관 변경)">
+        <Section title="6. 면책">
           <p>
-            운영자는 필요한 경우 본 약관을 변경할 수 있으며,
-            변경 시 서비스 내 공지 또는 이용약관 페이지를 통해 7일 이전에 고지합니다.
+            운영자는 정확한 정보를 제공하기 위해 노력하지만 모든 데이터의 완전성과 실시간성을 보장하지
+            않습니다. 이용자가 서비스 정보를 바탕으로 내린 판단에 대한 책임은 이용자 본인에게 있습니다.
           </p>
         </Section>
 
-        <Section title="제7조 (준거법 및 관할)">
+        <Section title="7. 약관 변경">
           <p>
-            본 약관은 대한민국 법률에 따라 해석되며,
-            서비스 이용과 관련한 분쟁은 운영자 소재지 관할 법원을 제1심 관할로 합니다.
+            운영자는 필요할 경우 이 약관을 변경할 수 있습니다. 변경 사항은 이 페이지에 시행일과 함께
+            게시합니다.
           </p>
+        </Section>
+
+        <Section title="8. 문의">
+          <p>서비스 이용과 약관에 관한 문의는 boksu.1990@gmail.com 으로 연락해 주세요.</p>
         </Section>
       </div>
     </div>
@@ -84,10 +80,8 @@ export default function TermsPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-base font-bold text-slate-200 mb-3 pb-2 border-b border-slate-700">
-        {title}
-      </h2>
-      <div className="text-slate-400 leading-relaxed text-sm space-y-2">{children}</div>
+      <h2 className="mb-3 border-b border-slate-700 pb-2 text-base font-bold text-slate-200">{title}</h2>
+      <div className="space-y-2 text-sm leading-relaxed text-slate-400">{children}</div>
     </section>
   );
 }

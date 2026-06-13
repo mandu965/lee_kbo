@@ -6,14 +6,16 @@ import json
 import logging
 import os
 import random
+import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+import httpx
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy import select, func, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import AsyncSessionLocal
+from app.database import AsyncSessionLocal, WebSessionLocal, has_web_db
 from app.models import BatterStat, EloHistory, Game, GameLineup, PitcherStat, Player, Prediction, PredictionRun, Team, TeamGameStat, TeamSeasonStandings
 from app.crawler.kbo_schedule import run_schedule_crawl
 from app.crawler.schemas import GameLineupData, GameScheduleData, PitcherGameLogData, PitcherStatData, TeamGameStatData
@@ -1054,6 +1056,10 @@ async def _fetch_type_a_data(session: AsyncSession, target_date: date) -> list[d
             "confidence_level": confidence_level,
             "key_factors": key_factors or [],
             "data_completeness": data_completeness,
+            "prediction_updated_at": pred.updated_at.isoformat() if pred.updated_at else None,
+            "prediction_run_id": run.id if run else None,
+            "prediction_run_generated_at": run.generated_at.isoformat() if run and run.generated_at else None,
+            "prediction_model_version": run.model_version if run else pred.model_version,
             "home_starter": home_pitcher.name if home_pitcher else "미정",
             "away_starter": away_pitcher.name if away_pitcher else "미정",
             "home_starter_era": home_era,
@@ -1062,6 +1068,28 @@ async def _fetch_type_a_data(session: AsyncSession, target_date: date) -> list[d
             "away_form": away_form,
         })
     return games_data
+
+
+def _log_blog_prediction_snapshot(content_type: str, source_date: date, games_data: list[dict]) -> None:
+    """Log the exact prediction values used to generate a blog draft."""
+    for game in games_data:
+        logger.info(
+            "[blog] prediction snapshot %s %s game=%s %s vs %s home=%s away=%s winner=%s winner_prob=%s pred_updated=%s run_id=%s run_generated=%s model=%s completeness=%s",
+            content_type,
+            source_date,
+            game.get("game_id"),
+            game.get("home_team"),
+            game.get("away_team"),
+            game.get("home_prob"),
+            game.get("away_prob"),
+            game.get("predicted_winner"),
+            game.get("predicted_winner_prob"),
+            game.get("prediction_updated_at"),
+            game.get("prediction_run_id"),
+            game.get("prediction_run_generated_at"),
+            game.get("prediction_model_version"),
+            game.get("data_completeness"),
+        )
 
 
 async def _fetch_type_b_data(session: AsyncSession, target_date: date) -> dict:
@@ -1250,15 +1278,269 @@ def _render(env: Environment, template_name: str, context: dict, min_chars: int)
     return rendered
 
 
+def _blog_polish_enabled() -> bool:
+    enabled = os.getenv("BLOG_POLISH_ENABLED", "").strip().lower()
+    if enabled in {"0", "false", "no", "off"}:
+        return False
+    if enabled in {"1", "true", "yes", "on"}:
+        return True
+    return bool(os.getenv("BLOG_POLISH_PROVIDER", "").strip())
+
+
+def _blog_enrich_gemini_enabled() -> bool:
+    return os.getenv("BLOG_ENRICH_GEMINI_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name, "").strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _gemini_api_key() -> str:
+    return (
+        os.getenv("G_STUDIO_API_KEY", "").strip()
+        or os.getenv("GEMINI_API_KEY", "").strip()
+        or os.getenv("GOOGLE_API_KEY", "").strip()
+    )
+
+
+def _extract_gemini_text(payload: dict) -> str:
+    parts = (
+        payload.get("candidates", [{}])[0]
+        .get("content", {})
+        .get("parts", [])
+    )
+    return "".join(part.get("text", "") for part in parts).strip()
+
+
+async def _generate_with_gemini(prompt: str, model: str, timeout: float, temperature: float) -> str:
+    api_key = _gemini_api_key()
+    if not api_key:
+        raise RuntimeError("Gemini API key is not configured")
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+            "topP": 0.8,
+        },
+    }
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        res = await client.post(url, params={"key": api_key}, json=payload)
+        res.raise_for_status()
+    text = _extract_gemini_text(res.json())
+    if not text:
+        raise RuntimeError("Gemini returned an empty response")
+    return text
+
+
+def _strip_code_fence(content: str) -> str:
+    cleaned = content.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:markdown|md|text)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    return cleaned.strip()
+
+
+def _protected_blog_tokens(context: dict) -> set[str]:
+    tokens = {str(context.get("date_kr", "")).strip()}
+    for game in context.get("games", []):
+        for key in (
+            "game_date", "start_time_str", "stadium",
+            "home_team", "away_team", "predicted_winner",
+            "home_starter", "away_starter",
+        ):
+            value = str(game.get(key, "")).strip()
+            if value and value != "미정":
+                tokens.add(value)
+    return {token for token in tokens if token}
+
+
+def _valid_enriched_content(original: str, enriched: str, context: dict) -> bool:
+    original_len = len(original.strip())
+    enriched_len = len(enriched.strip())
+    if original_len == 0 or enriched_len == 0:
+        return False
+    if enriched_len < original_len * 0.75 or enriched_len > original_len * 1.8:
+        return False
+    if original.lstrip().startswith("---") and not enriched.lstrip().startswith("---"):
+        return False
+    for percent in set(re.findall(r"\d+(?:\.\d+)?%", original)):
+        if percent not in enriched:
+            logger.warning("[blog] Gemini enrich rejected: missing percent %s", percent)
+            return False
+    missing = [token for token in _protected_blog_tokens(context) if token not in enriched]
+    if missing:
+        logger.warning("[blog] Gemini enrich rejected: missing protected tokens %s", missing[:5])
+        return False
+    return True
+
+
+def _valid_polished_content(original: str, polished: str) -> bool:
+    original_len = len(original.strip())
+    polished_len = len(polished.strip())
+    if original_len == 0 or polished_len == 0:
+        return False
+    if polished_len < original_len * 0.75 or polished_len > original_len * 1.35:
+        return False
+    if original.lstrip().startswith("---") and not polished.lstrip().startswith("---"):
+        return False
+    return True
+
+
+async def _polish_blog_content(
+    content_type: str,
+    source_date: date,
+    title: str,
+    platform: str,
+    content: str,
+) -> str:
+    """Optionally polish generated blog copy. Falls back to the current content."""
+    if not _blog_polish_enabled():
+        return content
+
+    provider = os.getenv("BLOG_POLISH_PROVIDER", "ollama").strip().lower()
+    timeout = _env_float("BLOG_POLISH_TIMEOUT", 90.0)
+    temperature = _env_float("BLOG_POLISH_TEMPERATURE", 0.25)
+
+    prompt = f"""
+너는 KBO 블로그 원고의 한국어 문장 편집자다.
+아래 원고를 더 자연스럽고 읽기 쉽게 다듬어라.
+
+규칙:
+- 팀명, 선수명, 날짜, 경기장, 확률, 점수, 순위, ELO, 승패 수, URL은 절대 바꾸지 않는다.
+- 원고에 없는 새 사실, 예측, 근거, 광고 문구를 추가하지 않는다.
+- 네이버용 일반 텍스트와 티스토리용 Markdown 구조를 유지한다.
+- 티스토리 frontmatter, 제목, 표, 목록, 인용, 링크는 보존한다.
+- 결과 본문만 출력한다. 설명, 머리말, 코드블록은 출력하지 않는다.
+
+메타:
+- content_type: {content_type}
+- source_date: {source_date}
+- platform: {platform}
+- title: {title}
+
+원고:
+{content}
+""".strip()
+
+    try:
+        if provider == "gemini":
+            model = os.getenv("BLOG_POLISH_GEMINI_MODEL", "").strip() or os.getenv(
+                "BLOG_ENRICH_GEMINI_MODEL", "gemini-1.5-flash"
+            ).strip()
+            polished = await _generate_with_gemini(prompt, model, timeout, temperature)
+        else:
+            base_url = os.getenv("BLOG_POLISH_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+            model = os.getenv("BLOG_POLISH_MODEL", "qwen2.5:7b")
+            num_ctx = _env_int("BLOG_POLISH_NUM_CTX", 2048)
+            keep_alive = os.getenv("BLOG_POLISH_KEEP_ALIVE", "0").strip() or "0"
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "keep_alive": keep_alive,
+                "options": {"temperature": temperature, "num_ctx": num_ctx},
+            }
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                res = await client.post(f"{base_url}/api/generate", json=payload)
+                res.raise_for_status()
+            polished = (res.json().get("response") or "").strip()
+        polished = _strip_code_fence(polished)
+        if not _valid_polished_content(content, polished):
+            logger.warning("[blog] polish rejected: %s %s %s", content_type, source_date, platform)
+            return content
+        logger.info("[blog] polished with %s/%s: %s %s %s", provider, model, content_type, source_date, platform)
+        return polished
+    except Exception as e:
+        logger.warning("[blog] polish failed: %s %s %s: %s", content_type, source_date, platform, e)
+        return content
+
+
+async def _enrich_type_a_with_gemini(
+    source_date: date,
+    title: str,
+    platform: str,
+    content: str,
+    context: dict,
+) -> str:
+    """Enrich TYPE_A prediction drafts without changing facts or numeric data."""
+    if not _blog_enrich_gemini_enabled():
+        return content
+
+    model = os.getenv("BLOG_ENRICH_GEMINI_MODEL", "gemini-1.5-flash").strip()
+    timeout = _env_float("BLOG_ENRICH_GEMINI_TIMEOUT", 90.0)
+    temperature = _env_float("BLOG_ENRICH_GEMINI_TEMPERATURE", 0.2)
+    games_json = json.dumps(context.get("games", []), ensure_ascii=False, default=str)
+    prompt = f"""
+너는 KBO 예측 블로그 편집자다. 아래 TYPE_A 원고를 독자가 더 오래 읽도록 보강하라.
+
+반드시 지킬 규칙:
+- 팀명, 선수명, 경기 날짜, 경기장, 시작 시각, 예측 승자, 홈/원정 승률, 신뢰도, 데이터 완전성 수치를 절대 바꾸지 않는다.
+- 제공 데이터에 없는 부상, 라인업, 날씨, 상대전적, 최신 뉴스, 배당, 베팅 표현을 추가하지 않는다.
+- 원고 형식은 유지한다. 네이버 원고는 일반 텍스트, 티스토리 원고는 Markdown/frontmatter/표를 보존한다.
+- 보강은 경기별 관전 포인트, 확률 해석, 리스크 설명, 자연스러운 연결 문장에 한정한다.
+- 결과 본문만 출력한다. 설명, 코드블록, 변경 요약은 출력하지 않는다.
+
+추천 보강:
+- 각 경기의 "AI 핵심 요인" 또는 "예측 결과" 주변에 1~2문장 관전 포인트를 추가한다.
+- 박빙/우세/데이터 완전성 의미를 일반 독자용 문장으로 풀어쓴다.
+- 마지막에는 예측이 참고용이며 경기 전 데이터 변동 가능성이 있다는 문장을 자연스럽게 유지한다.
+
+메타:
+- source_date: {source_date}
+- platform: {platform}
+- title: {title}
+
+원본 데이터(JSON, 사실 확인용):
+{games_json}
+
+원고:
+{content}
+""".strip()
+
+    try:
+        enriched = await _generate_with_gemini(prompt, model, timeout, temperature)
+        enriched = _strip_code_fence(enriched)
+        if not _valid_enriched_content(content, enriched, context):
+            logger.warning("[blog] Gemini enrich rejected: TYPE_A %s %s", source_date, platform)
+            return content
+        logger.info("[blog] enriched with Gemini %s: TYPE_A %s %s", model, source_date, platform)
+        return enriched
+    except Exception as e:
+        logger.warning("[blog] Gemini enrich failed: TYPE_A %s %s: %s", source_date, platform, e)
+        return content
+
+
 def _write_blog_files(content_type: str, source_date: date, naver: str, tistory: str) -> None:
     """당일 블로그 초안을 로컬 파일로 저장. 같은 타입의 이전 날짜 파일은 삭제해 최신 1건만 유지."""
     try:
         _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        # 같은 타입의 기존 파일 삭제 (날짜 무관)
-        for old in _OUTPUT_DIR.glob(f"*_{content_type}_naver.txt"):
-            old.unlink()
-        for old in _OUTPUT_DIR.glob(f"*_{content_type}_tistory.md"):
-            old.unlink()
+        if _env_bool("BLOG_OUTPUT_KEEP_LATEST_ONLY", True):
+            # 같은 타입의 기존 파일 삭제 (날짜 무관)
+            for old in _OUTPUT_DIR.glob(f"*_{content_type}_naver.txt"):
+                old.unlink()
+            for old in _OUTPUT_DIR.glob(f"*_{content_type}_tistory.md"):
+                old.unlink()
         prefix = f"{source_date}_{content_type}"
         (_OUTPUT_DIR / f"{prefix}_naver.txt").write_text(naver, encoding="utf-8")
         (_OUTPUT_DIR / f"{prefix}_tistory.md").write_text(tistory, encoding="utf-8")
@@ -1303,6 +1585,32 @@ async def _upsert_content_draft(
         logger.info("[blog] inserted DB: %s %s", content_type, source_date)
 
 
+async def _upsert_content_draft_web(
+    content_type: str,
+    source_date: date,
+    title: str,
+    content_naver: str,
+    content_tistory: str,
+) -> None:
+    """Mirror the final blog draft to the configured web DB when running locally."""
+    if not has_web_db() or WebSessionLocal is None:
+        return
+    try:
+        async with WebSessionLocal() as web_session:
+            async with web_session.begin():
+                await _upsert_content_draft(
+                    web_session,
+                    content_type,
+                    source_date,
+                    title,
+                    content_naver,
+                    content_tistory,
+                )
+        logger.info("[blog] mirrored to web DB: %s %s", content_type, source_date)
+    except Exception as e:
+        logger.warning("[blog] web DB mirror failed: %s %s: %s", content_type, source_date, e)
+
+
 async def task_generate_blog(target_date: date | None = None) -> None:
     """매일 15:30 — 블로그 초안 자동 생성 후 DB 저장 (당일 1건 유지).
 
@@ -1312,6 +1620,12 @@ async def task_generate_blog(target_date: date | None = None) -> None:
     """
     target = target_date or today_kst()
     logger.info("[blog] task_generate_blog start: %s", target)
+    try:
+        sync_result = await sync_after_predictions()
+        if sync_result:
+            logger.info("[blog] prediction sync before draft: %s", sync_result)
+    except Exception:
+        logger.exception("[blog] prediction sync before draft failed")
 
     var = _load_variations()
     try:
@@ -1333,6 +1647,7 @@ async def task_generate_blog(target_date: date | None = None) -> None:
             if not games_data:
                 logger.info("[blog] TYPE_A skipped: no predictions for %s", target)
             else:
+                _log_blog_prediction_snapshot("TYPE_A", target, games_data)
                 vA = var.get("type_a", {})
                 n_games = len(games_data)
                 min_c = _MIN_CHARS.get(("A", min(n_games, 3)), 1200)
@@ -1401,8 +1716,13 @@ async def task_generate_blog(target_date: date | None = None) -> None:
                 naver = _render(env, "type_a_naver.txt.j2", ctx_n, min_c)
                 tistory = _render(env, "type_a_tistory.md.j2", ctx_t, min_c)
                 if naver and tistory:
+                    naver = await _enrich_type_a_with_gemini(target, ctx_n["title"], "naver", naver, ctx_n)
+                    tistory = await _enrich_type_a_with_gemini(target, ctx_t["title"], "tistory", tistory, ctx_t)
+                    naver = await _polish_blog_content("TYPE_A", target, ctx_n["title"], "naver", naver)
+                    tistory = await _polish_blog_content("TYPE_A", target, ctx_t["title"], "tistory", tistory)
                     async with session.begin_nested():
                         await _upsert_content_draft(session, "TYPE_A", target, ctx_n["title"], naver, tistory)
+                    await _upsert_content_draft_web("TYPE_A", target, ctx_n["title"], naver, tistory)
                     _write_blog_files("TYPE_A", target, naver, tistory)
                     results["A"] = True
         except Exception:
@@ -1433,8 +1753,11 @@ async def task_generate_blog(target_date: date | None = None) -> None:
             naver = _render(env, "type_b_naver.txt.j2", ctx_n, _MIN_CHARS[("B", 0)])
             tistory = _render(env, "type_b_tistory.md.j2", ctx_t, _MIN_CHARS[("B", 0)])
             if naver and tistory:
+                naver = await _polish_blog_content("TYPE_B", target, ctx_n["title"], "naver", naver)
+                tistory = await _polish_blog_content("TYPE_B", target, ctx_t["title"], "tistory", tistory)
                 async with session.begin_nested():
                     await _upsert_content_draft(session, "TYPE_B", target, ctx_n["title"], naver, tistory)
+                await _upsert_content_draft_web("TYPE_B", target, ctx_n["title"], naver, tistory)
                 _write_blog_files("TYPE_B", target, naver, tistory)
                 results["B"] = True
         except Exception:
@@ -1465,8 +1788,11 @@ async def task_generate_blog(target_date: date | None = None) -> None:
                     naver = _render(env, "type_c_naver.txt.j2", ctx_n, _MIN_CHARS[("C", 0)])
                     tistory = _render(env, "type_c_tistory.md.j2", ctx_t, _MIN_CHARS[("C", 0)])
                     if naver and tistory:
+                        naver = await _polish_blog_content("TYPE_C", target, ctx_n["title"], "naver", naver)
+                        tistory = await _polish_blog_content("TYPE_C", target, ctx_t["title"], "tistory", tistory)
                         async with session.begin_nested():
                             await _upsert_content_draft(session, "TYPE_C", target, ctx_n["title"], naver, tistory)
+                        await _upsert_content_draft_web("TYPE_C", target, ctx_n["title"], naver, tistory)
                         _write_blog_files("TYPE_C", target, naver, tistory)
                         results["C"] = True
             except Exception:

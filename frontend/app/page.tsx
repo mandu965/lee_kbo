@@ -5,7 +5,7 @@ import AccuracyBadge from "@/components/AccuracyBadge";
 import AdSense from "@/components/AdSense";
 import GameCard from "@/components/GameCard";
 
-export const revalidate = 300;
+export const revalidate = 60;
 export const dynamic = "force-dynamic";
 
 function teamName(team: GameResponse["home_team"]) {

@@ -260,8 +260,8 @@ async def sync_after_results() -> None:
     await sync_to_web(["games", "elo_history"], silent=True)
 
 
-async def sync_after_predictions() -> None:
-    await sync_to_web(["predictions", "prediction_runs"], silent=True)
+async def sync_after_predictions() -> dict[str, int]:
+    return await sync_to_web(["predictions", "prediction_runs"], silent=True)
 
 
 async def sync_after_stats() -> None:

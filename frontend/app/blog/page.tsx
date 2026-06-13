@@ -2,11 +2,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getBlogPosts } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
-  title: "KBO 경기 분석 블로그 | KBO Predictor",
+  title: "KBO 경기 분석 블로그",
   description:
-    "KBO 프로야구 AI 경기 예측, ELO 팀 순위 분석, 주간 적중률 리포트를 매일 자동 발행합니다. 데이터 기반 야구 분석 콘텐츠.",
-  keywords: ["KBO 예측", "KBO 경기 분석", "야구 AI 예측", "KBO ELO", "오늘 KBO 경기"],
+    "KBO 경기 프리뷰, ELO 팀 전력 분석, 예측 적중률 리포트 등 데이터 기반 야구 분석 글을 제공합니다.",
+  keywords: ["KBO 예측", "KBO 경기 분석", "야구 통계", "KBO ELO", "프로야구 프리뷰"],
 };
 
 const CATEGORY_STYLE: Record<string, { bg: string; text: string }> = {
@@ -25,19 +28,19 @@ export default async function BlogListPage() {
   const posts = (data?.posts ?? []).filter((p) => p.slug === "type-a");
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* 헤더 */}
+    <div className="mx-auto max-w-3xl space-y-6">
       <div className="py-2">
-        <h1 className="text-2xl font-black text-white mb-2">KBO 경기 분석</h1>
-        <p className="text-slate-400 text-sm leading-relaxed">
-          AI 모델이 분석한 KBO 경기 예측·ELO 순위·주간 적중률을 매일 발행합니다.
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-indigo-300">Blog</p>
+        <h1 className="mb-2 text-2xl font-black text-white">KBO 경기 분석</h1>
+        <p className="text-sm leading-relaxed text-slate-400">
+          경기 프리뷰, ELO 흐름, 예측 결과를 정리한 분석 글입니다. 매일 수집되는 기록을 바탕으로
+          독자가 경기 흐름을 이해할 수 있도록 작성합니다.
         </p>
       </div>
 
-      {/* 글 목록 */}
       {posts.length === 0 ? (
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-10 text-center text-slate-500 text-sm">
-          아직 발행된 글이 없습니다. 매일 오후 3시 30분에 자동 생성됩니다.
+        <div className="rounded-lg border border-slate-700 bg-slate-800 p-10 text-center text-sm text-slate-500">
+          아직 발행된 글이 없습니다. 경기 데이터가 수집되면 분석 글이 순차적으로 표시됩니다.
         </div>
       ) : (
         <div className="space-y-3">
@@ -47,28 +50,23 @@ export default async function BlogListPage() {
               <Link
                 key={`${post.date}-${post.slug}`}
                 href={`/blog/${post.date}/${post.slug}`}
-                className="block bg-slate-800 border border-slate-700 rounded-2xl p-5 hover:border-indigo-500/40 hover:bg-slate-800/80 transition-all duration-150"
+                className="block rounded-lg border border-slate-700 bg-slate-800 p-5 transition-all duration-150 hover:border-indigo-500/40 hover:bg-slate-800/80"
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cat.bg} ${cat.text}`}>
+                <div className="mb-2 flex items-center gap-2">
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${cat.bg} ${cat.text}`}>
                     {post.category}
                   </span>
                   <span className="text-xs text-slate-500">{formatDate(post.date)}</span>
                 </div>
-                <h2 className="text-sm font-bold text-slate-100 leading-snug line-clamp-2">
-                  {post.title}
-                </h2>
+                <h2 className="line-clamp-2 text-sm font-bold leading-snug text-slate-100">{post.title}</h2>
               </Link>
             );
           })}
         </div>
       )}
 
-      {/* 총 개수 */}
       {posts.length > 0 && (
-        <p className="text-center text-xs text-slate-600 pb-4">
-          총 {posts.length}개의 경기 예측 분석
-        </p>
+        <p className="pb-4 text-center text-xs text-slate-600">총 {posts.length}개의 분석 글</p>
       )}
     </div>
   );

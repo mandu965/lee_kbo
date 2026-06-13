@@ -1702,6 +1702,121 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
     </div>
   );
 
+  const matchupContent = (
+    <div className="space-y-4">
+      {pitchersContent}
+      {lineupContent}
+      {offenseContent}
+    </div>
+  );
+
+  const predictionChangeContent = (
+    <div className="space-y-4">
+      {prediction ? (
+        <>
+          <section className="rounded-2xl border border-slate-700 bg-slate-800 p-5">
+            <div className="mb-4">
+              <h2 className="text-sm font-black text-slate-200">승률 변화 타임라인</h2>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                선발, 타순, 날씨처럼 데이터가 추가될 때 홈 승률이 어떻게 움직였는지 보여줍니다.
+              </p>
+            </div>
+            {prediction.trend.length > 0 ? (
+              <div className="space-y-2">
+                {prediction.trend.map((item, index) => (
+                  <div key={`${item.generated_at}-${index}`} className="flex items-center gap-3 rounded-xl bg-slate-900/30 px-3 py-2.5">
+                    <div className="w-20 shrink-0 text-[11px] text-slate-500">{formatRunTime(item.generated_at)}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-slate-300">
+                        {PREDICTION_TYPE_LABEL[item.prediction_type] ?? item.prediction_type}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        완성도 {item.data_completeness != null ? `${item.data_completeness.toFixed(0)}%` : "-"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-red-300">홈 {(item.home_win_prob * 100).toFixed(1)}%</p>
+                      <p className={`text-[11px] font-bold ${
+                        (item.change_pp ?? 0) > 0 ? "text-red-400" :
+                        (item.change_pp ?? 0) < 0 ? "text-blue-400" :
+                        "text-slate-600"
+                      }`}>
+                        {item.change_pp != null ? `${item.change_pp > 0 ? "+" : ""}${item.change_pp.toFixed(1)}%p` : "기준"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-slate-900/30 px-3 py-4 text-center text-xs text-slate-500">
+                예측 변화 이력을 준비 중입니다.
+              </p>
+            )}
+          </section>
+
+          {(prediction.park || prediction.weather || prediction.bullpen_home || prediction.bullpen_away) && (
+            <div className="rounded-2xl border border-slate-700 bg-slate-800 p-5 space-y-5">
+              <h2 className="text-sm font-black text-slate-200">경기 환경</h2>
+
+              {prediction.park && (
+                <div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-bold text-slate-400">구장 파크팩터</p>
+                      <span className="rounded-full bg-slate-700 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">참고 · 승률 미반영</span>
+                    </div>
+                    <span className={`text-sm font-black ${
+                      prediction.park.factor > 1.03 ? "text-orange-400" :
+                      prediction.park.factor < 0.97 ? "text-cyan-400" :
+                      "text-slate-300"
+                    }`}>
+                      {prediction.park.factor.toFixed(2)}
+                      <span className="ml-1 text-xs font-normal text-slate-500">
+                        {prediction.park.factor > 1.03 ? "타자 친화" :
+                         prediction.park.factor < 0.97 ? "투수 친화" :
+                         "중립"}
+                      </span>
+                    </span>
+                  </div>
+                  <ParkFactorBar factor={prediction.park.factor} />
+                </div>
+              )}
+
+              {prediction.weather && (
+                <div className={`rounded-xl p-4 ${
+                  prediction.weather.rain_risk ? "border border-yellow-800/40 bg-yellow-950/40" : "bg-slate-700/30"
+                }`}>
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="text-base">{prediction.weather.rain_risk ? "🌧️" : "🌤️"}</span>
+                    <p className="text-sm font-bold text-slate-200">{prediction.weather.description}</p>
+                  </div>
+                  {prediction.weather.temperature != null && (
+                    <p className="text-xs text-slate-500">{prediction.weather.temperature}°C</p>
+                  )}
+                </div>
+              )}
+
+              <BullpenUsageSection
+                awayTeamName={away_team.short_name ?? away_team.name}
+                homeTeamName={home_team.short_name ?? home_team.name}
+                bullpenAway={prediction.bullpen_away}
+                bullpenHome={prediction.bullpen_home}
+              />
+            </div>
+          )}
+
+          {game.data_freshness?.length ? (
+            <DataStatusCard freshness={game.data_freshness} prediction={prediction} />
+          ) : predictionLoading ? (
+            <LoadingCard text="예측 변화 데이터를 불러오는 중입니다." />
+          ) : null}
+        </>
+      ) : (
+        <LoadingCard text="예측 변화 데이터를 불러오는 중입니다." />
+      )}
+    </div>
+  );
+
   const gameHeader = (
     <div className="rounded-2xl border border-slate-700 bg-slate-800 p-4 sm:p-6">
       <div className="mb-5 flex items-center justify-between text-xs text-slate-500">
@@ -1756,9 +1871,9 @@ export default function GameDetailClient({ summary }: { summary: GameResponse })
         game={game}
         prediction={prediction}
         previewContent={previewContent}
-        lineupContent={offenseContent}
-        pitchersContent={pitchersContent}
-        analysisContent={analysisContent}
+        lineupContent={matchupContent}
+        pitchersContent={analysisContent}
+        analysisContent={predictionChangeContent}
       />
       <OtherGamesSection
         currentGame={game}

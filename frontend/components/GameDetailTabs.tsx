@@ -7,9 +7,9 @@ type Tab = "preview" | "offense" | "pitchers" | "analysis";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "preview", label: "프리뷰" },
-  { key: "offense", label: "공격력" },
-  { key: "pitchers", label: "선발" },
-  { key: "analysis", label: "예측 분석" },
+  { key: "offense", label: "선발/라인업" },
+  { key: "pitchers", label: "승부처" },
+  { key: "analysis", label: "예측 변화" },
 ];
 
 interface Props {
@@ -30,12 +30,19 @@ export default function GameDetailTabs({
   analysisContent,
 }: Props) {
   const [tab, setTab] = useState<Tab>("preview");
-  const hasPitchers = !!(game.starters?.home || game.starters?.away);
+  const hasMatchup = !!(
+    game.starters?.home ||
+    game.starters?.away ||
+    game.home_lineup ||
+    game.away_lineup ||
+    game.home_trend ||
+    game.away_trend
+  );
 
   const available: Record<Tab, boolean> = {
     preview: true,
-    offense: true,
-    pitchers: hasPitchers,
+    offense: hasMatchup,
+    pitchers: true,
     analysis: true,
   };
 
